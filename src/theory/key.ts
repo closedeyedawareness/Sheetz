@@ -79,14 +79,15 @@ export function detectKey(notes: NoteEvent[]): KeyInfo {
     if (minorScore > best.correlation) best = { tonic, mode: 'minor', correlation: minorScore };
   }
 
-  const vexKey = best.mode === 'major' ? MAJOR_KEY_NAMES[best.tonic] : MINOR_KEY_NAMES[best.tonic];
-  const spec = KEY_ACCIDENTALS[vexKey] ?? { accidental: null, num: 0 };
+  const name = best.mode === 'major' ? MAJOR_KEY_NAMES[best.tonic] : MINOR_KEY_NAMES[best.tonic];
+  const spec = KEY_ACCIDENTALS[name] ?? { accidental: null, num: 0 };
 
   return {
     tonic: best.tonic,
     mode: best.mode,
-    vexKey,
+    name,
     accidental: spec.accidental,
+    fifths: spec.accidental === 'b' ? -spec.num : spec.num,
     correlation: best.correlation,
   };
 }

@@ -34,7 +34,7 @@ export function buildScore(notes: NoteEvent[], options: BuildScoreOptions = {}):
     tempoBpm,
     timeSignature,
     key,
-    treble: buildStaffPart(treble, 'treble', timeSignature.ticksPerMeasure, secondsPerTick, key, sharedTotalTicks),
-    bass: buildStaffPart(bass, 'bass', timeSignature.ticksPerMeasure, secondsPerTick, key, sharedTotalTicks),
+    treble: buildStaffPart(treble, 'treble', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
+    bass: buildStaffPart(bass, 'bass', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
   };
 }

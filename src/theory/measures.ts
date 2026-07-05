@@ -1,7 +1,6 @@
-import type { ClefName, KeyInfo, Measure, QuantizedNote, ScoreSlot, StaffPart } from '../types';
+import type { ClefName, Measure, QuantizedNote, ScoreSlot, StaffPart } from '../types';
 import { amplitudeToDynamic } from './dynamics';
 import { decomposeTicks } from './durations';
-import { midiToVexKey } from './pitchSpelling';
 
 interface EventMarker {
   staccato?: boolean;
@@ -141,11 +140,7 @@ function splitAtMeasureBoundaries(
   return segments;
 }
 
-function emitSlotsForEvent(
-  event: TimelineEvent,
-  ticksPerMeasure: number,
-  key: KeyInfo
-): ScoreSlot[] {
+function emitSlotsForEvent(event: TimelineEvent, ticksPerMeasure: number): ScoreSlot[] {
   const segments = splitAtMeasureBoundaries(event.startTick, event.durationTicks, ticksPerMeasure);
   const slots: ScoreSlot[] = [];
   const marker = event.isRest ? undefined : event.marker;
@@ -163,7 +158,7 @@ function emitSlotsForEvent(
         dots: part.dots,
       };
       if (!event.isRest) {
-        slot.keys = event.pitches.map((p) => midiToVexKey(p, key));
+        slot.pitches = event.pitches;
         if (!isFirstOverall) slot.tiedFromPrevious = true;
         if (!isLastOverall) slot.tiedToNext = true;
         if (isFirstOverall && marker) {
@@ -187,7 +182,6 @@ export function buildStaffPart(
   clef: ClefName,
   ticksPerMeasure: number,
   secondsPerTick: number,
-  key: KeyInfo,
   minTotalTicks = 0
 ): StaffPart {
   const events = buildTimeline(notes, secondsPerTick, ticksPerMeasure, minTotalTicks);
@@ -205,7 +199,7 @@ export function buildStaffPart(
   };
 
   for (const event of events) {
-    const slots = emitSlotsForEvent(event, ticksPerMeasure, key);
+    const slots = emitSlotsForEvent(event, ticksPerMeasure);
     for (const slot of slots) {
       const measureIndex = Math.floor(slot.startTick / ticksPerMeasure);
       if (measureIndex !== currentMeasureIndex) {
