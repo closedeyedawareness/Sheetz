@@ -10,8 +10,10 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 
 app.innerHTML = `
 <header>
-  <h1>Piano Sheet Music Transcriber</h1>
-  <p>Upload a solo piano recording and get notated grand-staff sheet music, or play a connected MIDI keyboard live.</p>
+  <p class="eyebrow">✦ AI-assisted transcription</p>
+  <h1 class="wordmark">Sheetz</h1>
+  <p class="tagline">A pianist's dream</p>
+  <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, or play a connected MIDI keyboard live.</p>
 </header>
 
 <section class="panel">
