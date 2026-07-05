@@ -11,7 +11,7 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
 <header>
   <p class="eyebrow">✦ AI-assisted transcription</p>
-  <h1 class="wordmark">Sheetz</h1>
+  <img class="brand-logo" src="/logo.png" alt="Sheetz" width="220" height="220" />
   <p class="tagline">A pianist's dream</p>
   <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, or play a connected MIDI keyboard live.</p>
 </header>

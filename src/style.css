@@ -4,11 +4,12 @@
   --bg: #0b0916;
   --panel-bg: rgba(255, 255, 255, 0.035);
   --panel-border: rgba(185, 150, 255, 0.16);
-  --accent: #9d5cff;
-  --accent-2: #e7b8ff;
+  /* Coral/pink pulled from the logo's neon glow. */
+  --accent: #ff7482;
+  --accent-2: #ffb6c1;
   --gold: #e3c17e;
-  --accent-bg: rgba(157, 92, 255, 0.14);
-  --accent-border: rgba(185, 150, 255, 0.4);
+  --accent-bg: rgba(255, 116, 130, 0.14);
+  --accent-border: rgba(255, 150, 165, 0.4);
   --danger: #ff9dc2;
   --danger-bg: rgba(255, 140, 184, 0.12);
 
@@ -27,9 +28,9 @@ body {
   min-height: 100svh;
   background: var(--bg);
   background-image:
-    radial-gradient(ellipse 900px 600px at 15% 100%, rgba(157, 92, 255, 0.28), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 90% 0%, rgba(231, 184, 255, 0.16), transparent 60%),
-    radial-gradient(ellipse 1200px 800px at 50% 0%, rgba(157, 92, 255, 0.1), transparent 65%);
+    radial-gradient(ellipse 900px 600px at 15% 100%, rgba(255, 116, 130, 0.22), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 90% 0%, rgba(255, 182, 193, 0.14), transparent 60%),
+    radial-gradient(ellipse 1200px 800px at 50% 0%, rgba(157, 92, 255, 0.14), transparent 65%);
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
@@ -53,25 +54,20 @@ header {
   color: var(--accent-2);
   opacity: 0.85;
 }
-.wordmark {
-  font-family: 'Pinyon Script', cursive;
-  font-weight: 400;
-  font-size: 96px;
-  line-height: 1;
+.brand-logo {
+  width: 220px;
+  height: 220px;
   margin: 4px 0 0;
-  color: #fdfbff;
-  text-shadow:
-    0 0 30px rgba(185, 139, 255, 0.55),
-    0 0 70px rgba(157, 92, 255, 0.35);
+  filter: drop-shadow(0 0 30px rgba(255, 116, 130, 0.45)) drop-shadow(0 0 60px rgba(157, 92, 255, 0.25));
 }
 .tagline {
   font-family: 'Playfair Display', serif;
   font-style: italic;
   font-weight: 500;
   font-size: 22px;
-  margin: 6px 0 18px;
+  margin: 12px 0 18px;
   color: var(--accent-2);
-  text-shadow: 0 0 24px rgba(231, 184, 255, 0.4);
+  text-shadow: 0 0 24px rgba(255, 182, 193, 0.4);
 }
 .subtitle {
   margin: 0 auto;
@@ -109,7 +105,7 @@ header {
 }
 .dropzone:hover,
 .dropzone.dragover {
-  background: rgba(157, 92, 255, 0.22);
+  background: rgba(255, 116, 130, 0.18);
   border-color: var(--accent-2);
 }
 .dropzone input {
@@ -152,19 +148,19 @@ button.primary {
   border: 0;
   border-radius: 999px;
   padding: 11px 26px;
-  background: linear-gradient(135deg, var(--accent), #c07bff);
-  color: #fff;
+  background: linear-gradient(135deg, var(--accent), #ff9cab);
+  color: #2a0e14;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(157, 92, 255, 0.45);
+  box-shadow: 0 8px 24px rgba(255, 116, 130, 0.45);
   transition:
     transform 0.12s,
     box-shadow 0.12s;
 }
 button.primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(157, 92, 255, 0.6);
+  box-shadow: 0 10px 28px rgba(255, 116, 130, 0.6);
 }
 button.primary:disabled {
   opacity: 0.4;
@@ -254,8 +250,9 @@ button.secondary:hover {
 }
 
 @media (max-width: 640px) {
-  .wordmark {
-    font-size: 64px;
+  .brand-logo {
+    width: 150px;
+    height: 150px;
   }
   .tagline {
     font-size: 18px;
