@@ -28,6 +28,9 @@ type TimelineEvent = ChordEvent | RestEvent;
 const STACCATO_RATIO = 0.6;
 const ACCENT_RATIO = 1.25;
 const MIN_SLUR_GROUP_SIZE = 3;
+// Long unbroken legato runs (real playing rarely has rests) are split into
+// slurs of at most this many notes, rather than one arc across the whole piece.
+const MAX_SLUR_GROUP_SIZE = 8;
 
 function buildTimeline(
   notes: QuantizedNote[],
@@ -117,6 +120,9 @@ function annotateArticulationsAndSlurs(events: TimelineEvent[], secondsPerTick: 
       return;
     }
     if (groupStart === -1) groupStart = i;
+    else if (i - groupStart + 1 >= MAX_SLUR_GROUP_SIZE) {
+      flushGroup(i + 1);
+    }
   });
   flushGroup(events.length);
 }
