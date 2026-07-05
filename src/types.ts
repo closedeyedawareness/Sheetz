@@ -29,8 +29,8 @@ export interface ScoreSlot {
   /** VexFlow base duration, e.g. 'w' | 'h' | 'q' | '8' | '16'. */
   duration: string;
   dots: 0 | 1;
-  /** VexFlow key strings, e.g. 'c#/4'. Only present for notes. */
-  keys?: string[];
+  /** Raw MIDI pitches making up the chord. Only present for notes. */
+  pitches?: number[];
   /** True if this slot is tied over from the previous slot (same sounding note continues). */
   tiedFromPrevious?: boolean;
   /** True if this slot is tied into the next slot. */
@@ -56,9 +56,11 @@ export interface KeyInfo {
   /** Pitch class 0-11 of the tonic, 0 = C. */
   tonic: number;
   mode: 'major' | 'minor';
-  /** VexFlow key signature spec, e.g. 'G', 'Em', 'Bb'. */
-  vexKey: string;
+  /** Key name, e.g. 'G', 'Em', 'Bb'. */
+  name: string;
   accidental: '#' | 'b' | null;
+  /** Signed count of sharps (positive) or flats (negative) for MusicXML's <fifths>. */
+  fifths: number;
   correlation: number;
 }
 

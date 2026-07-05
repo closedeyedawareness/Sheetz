@@ -2,7 +2,7 @@ import './style.css';
 import { decodeAudioFile } from './audio/decode';
 import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
-import { renderScore } from './render/vexflowRender';
+import { renderScore } from './render/osmdRender';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
 import type { NoteEvent, Score } from './types';
 
@@ -89,7 +89,7 @@ function currentTimeSignature() {
 }
 
 function describeScore(score: Score): string {
-  const keyName = `${score.key.vexKey}${score.key.mode === 'major' ? ' major' : ' minor'}`;
+  const keyName = `${score.key.name}${score.key.mode === 'major' ? ' major' : ' minor'}`;
   return `
     <div><b>Tempo</b> ~${score.tempoBpm} BPM</div>
     <div><b>Key</b> ${keyName}</div>
@@ -98,10 +98,16 @@ function describeScore(score: Score): string {
   `;
 }
 
-function showScore(score: Score): void {
+// OSMD isn't safe to invoke concurrently, so overlapping showScore() calls
+// (e.g. rapid MIDI note releases) are chained rather than run in parallel.
+let renderLock: Promise<void> = Promise.resolve();
+
+function showScore(score: Score): Promise<void> {
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
-  renderScore(scoreContainer, score);
+  const run = renderLock.catch(() => undefined).then(() => renderScore(scoreContainer, score));
+  renderLock = run.catch(() => undefined);
+  return run;
 }
 
 function pickFile(file: File): void {
@@ -148,7 +154,7 @@ analyzeButton.addEventListener('click', async () => {
 
     const tempoOverride = tempoInput.value ? Number(tempoInput.value) : undefined;
     const score = buildScore(notes, { tempoBpm: tempoOverride, timeSignature: currentTimeSignature() });
-    showScore(score);
+    await showScore(score);
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
     console.error(err);
@@ -172,7 +178,7 @@ midiButton.addEventListener('click', async () => {
     midiSession = await connectMidi((notes) => {
       if (notes.length === 0) return;
       const score = buildScore(notes, { timeSignature: currentTimeSignature() });
-      showScore(score);
+      showScore(score).catch((err) => console.error(err));
     });
     midiButton.textContent = 'Disconnect MIDI keyboard';
     midiStatus.textContent =
