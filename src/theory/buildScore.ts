@@ -1,4 +1,5 @@
 import type { NoteEvent, Score, TimeSignatureInfo } from '../types';
+import { detectChordProgression } from './chords';
 import { TICKS_PER_QUARTER, TICKS_PER_WHOLE } from './durations';
 import { splitHands } from './handSplit';
 import { detectKey } from './key';
@@ -29,6 +30,7 @@ export function buildScore(notes: NoteEvent[], options: BuildScoreOptions = {}):
   const lastTick = (staffNotes: typeof quantized) =>
     staffNotes.reduce((max, n) => Math.max(max, n.startTick + n.durationTicks), 0);
   const sharedTotalTicks = Math.max(lastTick(treble), lastTick(bass));
+  const totalMeasures = Math.max(1, Math.ceil(sharedTotalTicks / timeSignature.ticksPerMeasure));
 
   return {
     tempoBpm,
@@ -36,5 +38,6 @@ export function buildScore(notes: NoteEvent[], options: BuildScoreOptions = {}):
     key,
     treble: buildStaffPart(treble, 'treble', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
     bass: buildStaffPart(bass, 'bass', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
+    chords: detectChordProgression(quantized, timeSignature.ticksPerMeasure, totalMeasures),
   };
 }

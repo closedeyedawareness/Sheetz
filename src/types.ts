@@ -71,10 +71,22 @@ export interface TimeSignatureInfo {
   ticksPerMeasure: number;
 }
 
+/** A detected chord symbol (e.g. "Dm7"), shown at the measure where the harmony changes. */
+export interface ChordSymbol {
+  measureIndex: number;
+  /** Pitch class 0-11 of the chord root. */
+  root: number;
+  /** Quality suffix, e.g. '', 'm', '7', 'maj7', 'dim'. */
+  suffix: string;
+  /** MusicXML <kind> value, e.g. 'major', 'minor-seventh'. */
+  mxmlKind: string;
+}
+
 export interface Score {
   tempoBpm: number;
   timeSignature: TimeSignatureInfo;
   key: KeyInfo;
   treble: StaffPart;
   bass: StaffPart;
+  chords: ChordSymbol[];
 }
