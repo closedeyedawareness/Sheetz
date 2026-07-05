@@ -12,26 +12,31 @@ const DURATION_TYPE_NAMES: Record<string, string> = {
 
 let slurCounter = 0;
 
-function renderNoteSlot(
+/**
+ * Renders one <note> element for a single pitch. Chords are NOT multiple
+ * <pitch> children on one <note> (that's invalid MusicXML) — each pitch in a
+ * chord gets its own <note> element, with all but the first flagged <chord/>.
+ */
+function renderSingleNote(
   slot: ScoreSlot,
   staffNumber: 1 | 2,
   voiceNumber: 1 | 2,
-  key: Score['key'],
-  slurNumber: number
+  midi: number | undefined,
+  isChordContinuation: boolean,
+  includeChordWideNotations: boolean,
+  slurNumber: number,
+  key: Score['key']
 ): string {
   const parts: string[] = ['<note>'];
 
-  if (slot.type === 'rest') {
+  if (isChordContinuation) parts.push('<chord/>');
+  if (slot.type === 'rest' || midi === undefined) {
     parts.push('<rest/>');
   } else {
-    const pitches = slot.pitches!;
-    pitches.forEach((midi, i) => {
-      if (i > 0) parts.push('<chord/>');
-      const pitch = midiToPitch(midi, key);
-      parts.push(
-        `<pitch><step>${pitch.step}</step>${pitch.alter !== 0 ? `<alter>${pitch.alter}</alter>` : ''}<octave>${pitch.octave}</octave></pitch>`
-      );
-    });
+    const pitch = midiToPitch(midi, key);
+    parts.push(
+      `<pitch><step>${pitch.step}</step>${pitch.alter !== 0 ? `<alter>${pitch.alter}</alter>` : ''}<octave>${pitch.octave}</octave></pitch>`
+    );
   }
 
   parts.push(`<duration>${slot.durationTicks}</duration>`);
@@ -45,16 +50,33 @@ function renderNoteSlot(
   const notations: string[] = [];
   if (slot.tiedFromPrevious) notations.push('<tied type="stop"/>');
   if (slot.tiedToNext) notations.push('<tied type="start"/>');
-  if (slot.slurStart) notations.push(`<slur type="start" number="${slurNumber}"/>`);
-  if (slot.slurEnd) notations.push(`<slur type="stop" number="${slurNumber}"/>`);
-  if (slot.articulations?.length) {
-    const arts = slot.articulations.map((a) => (a === 'staccato' ? '<staccato/>' : '<accent/>')).join('');
-    notations.push(`<articulations>${arts}</articulations>`);
+  if (includeChordWideNotations) {
+    if (slot.slurStart) notations.push(`<slur type="start" number="${slurNumber}"/>`);
+    if (slot.slurEnd) notations.push(`<slur type="stop" number="${slurNumber}"/>`);
+    if (slot.articulations?.length) {
+      const arts = slot.articulations.map((a) => (a === 'staccato' ? '<staccato/>' : '<accent/>')).join('');
+      notations.push(`<articulations>${arts}</articulations>`);
+    }
   }
   if (notations.length) parts.push(`<notations>${notations.join('')}</notations>`);
 
   parts.push('</note>');
   return parts.join('');
+}
+
+function renderNoteSlot(
+  slot: ScoreSlot,
+  staffNumber: 1 | 2,
+  voiceNumber: 1 | 2,
+  key: Score['key'],
+  slurNumber: number
+): string {
+  if (slot.type === 'rest') {
+    return renderSingleNote(slot, staffNumber, voiceNumber, undefined, false, true, slurNumber, key);
+  }
+  return slot.pitches!
+    .map((midi, i) => renderSingleNote(slot, staffNumber, voiceNumber, midi, i > 0, i === 0, slurNumber, key))
+    .join('');
 }
 
 function renderDirection(dynamic: string, staffNumber: 1 | 2): string {
