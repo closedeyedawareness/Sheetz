@@ -1,6 +1,6 @@
 import { TICKS_PER_QUARTER } from '../theory/durations';
 import { midiToPitch } from '../theory/pitchSpelling';
-import type { Measure, Score, ScoreSlot } from '../types';
+import type { ChordSymbol, Measure, Score, ScoreSlot } from '../types';
 
 const DURATION_TYPE_NAMES: Record<string, string> = {
   w: 'whole',
@@ -83,6 +83,12 @@ function renderDirection(dynamic: string, staffNumber: 1 | 2): string {
   return `<direction placement="${staffNumber === 1 ? 'below' : 'above'}"><direction-type><dynamics><${dynamic}/></dynamics></direction-type><staff>${staffNumber}</staff></direction>`;
 }
 
+function renderHarmony(chord: ChordSymbol, key: Score['key']): string {
+  const root = midiToPitch(chord.root + 60, key);
+  const rootAlter = root.alter !== 0 ? `<root-alter>${root.alter}</root-alter>` : '';
+  return `<harmony><root><root-step>${root.step}</root-step>${rootAlter}</root><kind text="${chord.suffix}">${chord.mxmlKind}</kind></harmony>`;
+}
+
 /** Assigns a stable slur-pair number per staff so nested/adjacent slurs don't collide. */
 function assignSlurNumbers(measure: Measure | undefined): Map<ScoreSlot, number> {
   const map = new Map<ScoreSlot, number>();
@@ -132,6 +138,10 @@ function renderMeasure(
 
   const trebleSlots = treble?.slots ?? [{ type: 'rest', startTick: 0, durationTicks: ticksPerMeasure, duration: 'w', dots: 0 } as ScoreSlot];
   const bassSlots = bass?.slots ?? [{ type: 'rest', startTick: 0, durationTicks: ticksPerMeasure, duration: 'w', dots: 0 } as ScoreSlot];
+
+  for (const chord of score.chords) {
+    if (chord.measureIndex === measureIndex) parts.push(renderHarmony(chord, score.key));
+  }
 
   for (const slot of trebleSlots) {
     if (slot.dynamic) parts.push(renderDirection(slot.dynamic, 1));

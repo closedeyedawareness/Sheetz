@@ -31,6 +31,11 @@ const MIN_SLUR_GROUP_SIZE = 3;
 // Long unbroken legato runs (real playing rarely has rests) are split into
 // slurs of at most this many notes, rather than one arc across the whole piece.
 const MAX_SLUR_GROUP_SIZE = 8;
+// Dynamics are judged on a slow-moving average (real playing's note-to-note
+// loudness is noisy) and are never re-printed sooner than this many chord
+// events apart, so the score doesn't get a new p/mf/f under every note.
+const DYNAMIC_SMOOTHING = 0.15;
+const MIN_EVENTS_BETWEEN_DYNAMICS = 8;
 
 function buildTimeline(
   notes: QuantizedNote[],
@@ -87,7 +92,9 @@ function buildTimeline(
 /** Mutates chord events in place, attaching computed dynamic/articulation/slur markers. */
 function annotateArticulationsAndSlurs(events: TimelineEvent[], secondsPerTick: number): void {
   let emaAmplitude: number | undefined;
+  let smoothedAmplitude: number | undefined;
   let lastDynamic: string | undefined;
+  let eventsSinceLastDynamic = Infinity;
 
   for (const event of events) {
     if (event.isRest) continue;
@@ -95,10 +102,19 @@ function annotateArticulationsAndSlurs(events: TimelineEvent[], secondsPerTick: 
     const staccato = event.rawDurationSeconds < STACCATO_RATIO * slotSeconds;
     const accent = emaAmplitude !== undefined && event.amplitude > emaAmplitude * ACCENT_RATIO;
     emaAmplitude = emaAmplitude === undefined ? event.amplitude : emaAmplitude * 0.7 + event.amplitude * 0.3;
+    smoothedAmplitude =
+      smoothedAmplitude === undefined
+        ? event.amplitude
+        : smoothedAmplitude * (1 - DYNAMIC_SMOOTHING) + event.amplitude * DYNAMIC_SMOOTHING;
 
-    const dynamic = amplitudeToDynamic(event.amplitude);
-    const dynamicToShow = dynamic !== lastDynamic ? dynamic : undefined;
-    if (dynamicToShow) lastDynamic = dynamic;
+    const dynamic = amplitudeToDynamic(smoothedAmplitude);
+    const dynamicToShow =
+      dynamic !== lastDynamic && eventsSinceLastDynamic >= MIN_EVENTS_BETWEEN_DYNAMICS ? dynamic : undefined;
+    eventsSinceLastDynamic++;
+    if (dynamicToShow) {
+      lastDynamic = dynamic;
+      eventsSinceLastDynamic = 0;
+    }
 
     event.marker = { staccato, accent, dynamic: dynamicToShow };
   }
