@@ -54,7 +54,8 @@ app.innerHTML = `
 <section class="panel" id="scoreSection" hidden>
   <h2>Sheet music</h2>
   <div class="score-meta" id="scoreMeta"></div>
-  <div id="scoreContainer"></div>
+  <p class="scroll-hint">↔ Scroll sideways to read across each line</p>
+  <div id="scoreContainer"><div id="scoreInner"></div></div>
   <p class="limitations">
     Automated transcription is approximate: hand-splitting uses a fixed middle-C threshold, rhythm is snapped to a
     sixteenth-note grid at a single estimated tempo, and dynamics/articulation/slurs are heuristic guesses from note
@@ -73,7 +74,7 @@ const progressBar = document.querySelector<HTMLDivElement>('#progressBar')!;
 const progressFill = document.querySelector<HTMLDivElement>('#progressFill')!;
 const scoreSection = document.querySelector<HTMLElement>('#scoreSection')!;
 const scoreMeta = document.querySelector<HTMLDivElement>('#scoreMeta')!;
-const scoreContainer = document.querySelector<HTMLDivElement>('#scoreContainer')!;
+const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
 
@@ -107,7 +108,7 @@ let renderLock: Promise<void> = Promise.resolve();
 function showScore(score: Score): Promise<void> {
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
-  const run = renderLock.catch(() => undefined).then(() => renderScore(scoreContainer, score));
+  const run = renderLock.catch(() => undefined).then(() => renderScore(scoreInner, score));
   renderLock = run.catch(() => undefined);
   return run;
 }

@@ -221,6 +221,18 @@ button.secondary:hover {
   font-weight: 600;
 }
 
+.scroll-hint {
+  display: none;
+  font-size: 13px;
+  opacity: 0.65;
+  margin: 0 0 10px;
+}
+@media (max-width: 960px) {
+  .scroll-hint {
+    display: block;
+  }
+}
+
 /* The notation itself stays crisp ink-on-paper for legibility; only its
    frame picks up the app's theme. */
 #scoreContainer {
@@ -235,6 +247,13 @@ button.secondary:hover {
 }
 #scoreContainer svg {
   display: block;
+}
+/* OSMD lays out based on this element's width, so it's kept at a comfortable
+   fixed minimum rather than the phone-narrow width of its scrollable parent —
+   notation squeezed into ~350px gets illegibly cramped. Narrow screens
+   scroll/pinch-zoom to read it instead of the engraving shrinking to fit. */
+#scoreInner {
+  min-width: 900px;
 }
 
 .limitations {
