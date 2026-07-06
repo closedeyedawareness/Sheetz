@@ -89,4 +89,6 @@ export interface Score {
   treble: StaffPart;
   bass: StaffPart;
   chords: ChordSymbol[];
+  title?: string;
+  artist?: string;
 }

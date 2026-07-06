@@ -12,6 +12,11 @@ const DURATION_TYPE_NAMES: Record<string, string> = {
 
 let slurCounter = 0;
 
+/** Title/artist come from free-text user input, unlike everything else in this file. */
+function escapeXmlText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 /**
  * Renders one <note> element for a single pitch. Chords are NOT multiple
  * <pitch> children on one <note> (that's invalid MusicXML) — each pitch in a
@@ -177,10 +182,14 @@ export function scoreToMusicXml(score: Score): string {
     );
   }
 
+  const title = score.title?.trim();
+  const artist = score.artist?.trim();
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
 <score-partwise version="4.0">
-  <work><work-title>Transcription</work-title></work>
+  ${title ? `<work><work-title>${escapeXmlText(title)}</work-title></work>` : ''}
+  ${artist ? `<identification><creator type="composer">${escapeXmlText(artist)}</creator></identification>` : ''}
   <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
   <part id="P1">${measures.join('')}</part>
 </score-partwise>`;
