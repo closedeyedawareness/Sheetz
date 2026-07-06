@@ -11,10 +11,24 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
 <header>
   <p class="eyebrow">✦ AI-assisted transcription</p>
-  <h1 class="wordmark">Sheetz</h1>
+  <img class="brand-logo" src="/logo.png" alt="Sheetz" width="220" height="220" />
   <p class="tagline">A pianist's dream</p>
   <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, or play a connected MIDI keyboard live.</p>
 </header>
+
+<section class="panel">
+  <h2>Song details</h2>
+  <div class="controls-row">
+    <label>
+      Song title
+      <input type="text" id="titleInput" placeholder="Untitled" />
+    </label>
+    <label>
+      Artist
+      <input type="text" id="artistInput" placeholder="Unknown" />
+    </label>
+  </div>
+</section>
 
 <section class="panel">
   <h2>1. Import audio</h2>
@@ -28,7 +42,8 @@ app.innerHTML = `
     <label>
       Time signature
       <select id="timeSigSelect">
-        <option value="4/4" selected>4/4</option>
+        <option value="" selected>Auto-detect</option>
+        <option value="4/4">4/4</option>
         <option value="3/4">3/4</option>
         <option value="2/4">2/4</option>
         <option value="6/8">6/8</option>
@@ -54,7 +69,8 @@ app.innerHTML = `
 <section class="panel" id="scoreSection" hidden>
   <h2>Sheet music</h2>
   <div class="score-meta" id="scoreMeta"></div>
-  <div id="scoreContainer"></div>
+  <p class="scroll-hint">↔ Scroll sideways to read across each line</p>
+  <div id="scoreContainer"><div id="scoreInner"></div></div>
   <p class="limitations">
     Automated transcription is approximate: hand-splitting uses a fixed middle-C threshold, rhythm is snapped to a
     sixteenth-note grid at a single estimated tempo, and dynamics/articulation/slurs are heuristic guesses from note
@@ -68,12 +84,14 @@ const fileInput = document.querySelector<HTMLInputElement>('#fileInput')!;
 const analyzeButton = document.querySelector<HTMLButtonElement>('#analyzeButton')!;
 const timeSigSelect = document.querySelector<HTMLSelectElement>('#timeSigSelect')!;
 const tempoInput = document.querySelector<HTMLInputElement>('#tempoInput')!;
+const titleInput = document.querySelector<HTMLInputElement>('#titleInput')!;
+const artistInput = document.querySelector<HTMLInputElement>('#artistInput')!;
 const statusEl = document.querySelector<HTMLDivElement>('#status')!;
 const progressBar = document.querySelector<HTMLDivElement>('#progressBar')!;
 const progressFill = document.querySelector<HTMLDivElement>('#progressFill')!;
 const scoreSection = document.querySelector<HTMLElement>('#scoreSection')!;
 const scoreMeta = document.querySelector<HTMLDivElement>('#scoreMeta')!;
-const scoreContainer = document.querySelector<HTMLDivElement>('#scoreContainer')!;
+const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
 
@@ -86,13 +104,27 @@ function setStatus(message: string, kind: 'info' | 'error' | '' = ''): void {
 }
 
 function currentTimeSignature() {
+  if (!timeSigSelect.value) return undefined;
   const [num, den] = timeSigSelect.value.split('/').map(Number);
   return makeTimeSignature(num, den);
 }
 
+function currentSongMeta() {
+  return { title: titleInput.value.trim() || undefined, artist: artistInput.value.trim() || undefined };
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function describeScore(score: Score): string {
   const keyName = `${score.key.name}${score.key.mode === 'major' ? ' major' : ' minor'}`;
+  const heading = [score.title, score.artist]
+    .filter((s): s is string => Boolean(s))
+    .map(escapeHtml)
+    .join(' — ');
   return `
+    ${heading ? `<div class="score-heading">${heading}</div>` : ''}
     <div><b>Tempo</b> ~${score.tempoBpm} BPM</div>
     <div><b>Key</b> ${keyName}</div>
     <div><b>Time</b> ${score.timeSignature.numerator}/${score.timeSignature.denominator}</div>
@@ -107,7 +139,10 @@ let renderLock: Promise<void> = Promise.resolve();
 function showScore(score: Score): Promise<void> {
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
-  const run = renderLock.catch(() => undefined).then(() => renderScore(scoreContainer, score));
+  // Reflects whatever meter was actually used (including auto-detected) back into the
+  // dropdown, so the user can see what was picked and override it for a re-analysis.
+  timeSigSelect.value = `${score.timeSignature.numerator}/${score.timeSignature.denominator}`;
+  const run = renderLock.catch(() => undefined).then(() => renderScore(scoreInner, score));
   renderLock = run.catch(() => undefined);
   return run;
 }
@@ -155,7 +190,11 @@ analyzeButton.addEventListener('click', async () => {
     }
 
     const tempoOverride = tempoInput.value ? Number(tempoInput.value) : undefined;
-    const score = buildScore(notes, { tempoBpm: tempoOverride, timeSignature: currentTimeSignature() });
+    const score = buildScore(notes, {
+      tempoBpm: tempoOverride,
+      timeSignature: currentTimeSignature(),
+      ...currentSongMeta(),
+    });
     await showScore(score);
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
@@ -179,7 +218,7 @@ midiButton.addEventListener('click', async () => {
   try {
     midiSession = await connectMidi((notes) => {
       if (notes.length === 0) return;
-      const score = buildScore(notes, { timeSignature: currentTimeSignature() });
+      const score = buildScore(notes, { timeSignature: currentTimeSignature(), ...currentSongMeta() });
       showScore(score).catch((err) => console.error(err));
     });
     midiButton.textContent = 'Disconnect MIDI keyboard';

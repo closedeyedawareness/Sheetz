@@ -12,8 +12,9 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
   const osmd = new OpenSheetMusicDisplay(container, {
     backend: 'svg',
     autoResize: false,
-    drawTitle: false,
-    drawComposer: false,
+    pageFormat: 'A4_P',
+    drawTitle: Boolean(score.title?.trim()),
+    drawComposer: Boolean(score.artist?.trim()),
     drawPartNames: false,
   });
   await osmd.load(scoreToMusicXml(score));
