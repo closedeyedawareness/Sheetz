@@ -4,7 +4,7 @@ import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
 import { renderScore } from './render/osmdRender';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
-import { generateChordProgression } from './theory/progressionGenerator';
+import { generateChordProgression, generateStructuredProgression } from './theory/progressionGenerator';
 import type { NoteEvent, Score } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -69,13 +69,31 @@ app.innerHTML = `
 
 <section class="panel">
   <h2>3. Generate chord progressions</h2>
-  <p style="opacity: 0.8; font-size: 14px; margin-bottom: 16px;">Composer's aid: generates a line of professional jazz chords (Cm7 – Fm7 – Bb7 – Ebmaj9 style) in a random key. Click to get fresh ideas.</p>
+  <p style="opacity: 0.8; font-size: 14px; margin-bottom: 16px;">Composer's aid: generates professional jazz chords in a random key. Click to get fresh ideas.</p>
   <div class="controls-row">
-    <button class="primary" id="generateButton">✨ Generate progression</button>
+    <button class="primary" id="generateButton">✨ One-line progression</button>
+    <button class="primary" id="generateStructuredButton">🎵 Full song structure</button>
   </div>
+
   <div id="generatedProgression" class="generated-chord-output" hidden>
     <div class="progression-line" id="progressionLine"></div>
     <div class="progression-meta" id="progressionMeta"></div>
+  </div>
+
+  <div id="generatedStructured" class="generated-structured-output" hidden>
+    <div class="progression-meta" id="structuredMeta"></div>
+    <div class="song-section">
+      <div class="section-label">Intro</div>
+      <div class="progression-line" id="introLine"></div>
+    </div>
+    <div class="song-section">
+      <div class="section-label">Transition</div>
+      <div class="progression-line" id="transitionLine"></div>
+    </div>
+    <div class="song-section">
+      <div class="section-label">Ending</div>
+      <div class="progression-line" id="endingLine"></div>
+    </div>
   </div>
 </section>
 
@@ -108,9 +126,15 @@ const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
 const generateButton = document.querySelector<HTMLButtonElement>('#generateButton')!;
+const generateStructuredButton = document.querySelector<HTMLButtonElement>('#generateStructuredButton')!;
 const generatedProgression = document.querySelector<HTMLDivElement>('#generatedProgression')!;
 const progressionLine = document.querySelector<HTMLDivElement>('#progressionLine')!;
 const progressionMeta = document.querySelector<HTMLDivElement>('#progressionMeta')!;
+const generatedStructured = document.querySelector<HTMLDivElement>('#generatedStructured')!;
+const structuredMeta = document.querySelector<HTMLDivElement>('#structuredMeta')!;
+const introLine = document.querySelector<HTMLDivElement>('#introLine')!;
+const transitionLine = document.querySelector<HTMLDivElement>('#transitionLine')!;
+const endingLine = document.querySelector<HTMLDivElement>('#endingLine')!;
 
 let selectedFile: File | undefined;
 let midiSession: MidiSession | undefined;
@@ -254,4 +278,15 @@ generateButton.addEventListener('click', () => {
   progressionLine.textContent = progression.line;
   progressionMeta.textContent = `Key: ${progression.key} (${progression.mode})`;
   generatedProgression.hidden = false;
+  generatedStructured.hidden = true;
+});
+
+generateStructuredButton.addEventListener('click', () => {
+  const structured = generateStructuredProgression();
+  introLine.textContent = structured.intro;
+  transitionLine.textContent = structured.transition;
+  endingLine.textContent = structured.ending;
+  structuredMeta.textContent = `Key: ${structured.key} (${structured.mode})`;
+  generatedStructured.hidden = false;
+  generatedProgression.hidden = true;
 });

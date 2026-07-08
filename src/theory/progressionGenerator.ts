@@ -83,6 +83,14 @@ export interface GeneratedProgression {
   mode: 'major' | 'minor';
 }
 
+export interface StructuredProgression {
+  intro: string;
+  transition: string;
+  ending: string;
+  key: string;
+  mode: 'major' | 'minor';
+}
+
 /** Generates one line of diatonic, professionally-voiced chords in a randomly chosen key. */
 export function generateChordProgression(): GeneratedProgression {
   const mode: 'major' | 'minor' = Math.random() < 0.5 ? 'major' : 'minor';
@@ -95,4 +103,47 @@ export function generateChordProgression(): GeneratedProgression {
   const keyName = `${rootNames[tonicIndex]}${mode === 'minor' ? 'm' : ''}`;
 
   return { line: chords.join(' – '), key: keyName, mode };
+}
+
+/** Generates a full song structure: intro (4 chords) → transition (4 chords) → ending (4 chords). */
+export function generateStructuredProgression(): StructuredProgression {
+  const mode: 'major' | 'minor' = Math.random() < 0.5 ? 'major' : 'minor';
+  const tonicIndex = Math.floor(Math.random() * 12);
+  const rootNames = mode === 'major' ? MAJOR_ROOTS : MINOR_ROOTS;
+  const degrees = mode === 'major' ? MAJOR_DEGREES : MINOR_DEGREES;
+
+  // Intro: establishes the key with strong tonic, stable progression
+  const introSequences: number[][] = [
+    [0, 3, 4, 0], // I - IV - V - I (classic)
+    [0, 5, 1, 4], // I - vi - ii - V
+    [0, 2, 5, 1], // I - iii - vi - ii
+    [1, 4, 0, 5], // ii - V - I - vi
+  ];
+  const introSeq = pick(introSequences);
+  const intro = introSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+
+  // Transition: moves away from tonic, sets up tension, ends on dominant or secondary chord
+  const transitionSequences: number[][] = [
+    [2, 5, 1, 4], // iii - vi - ii - V (circle motion)
+    [5, 1, 4, 2], // vi - ii - V - iii (stepping up)
+    [3, 4, 5, 1], // IV - V - vi - ii (modulating feel)
+    [4, 2, 5, 3], // V - iii - vi - IV (jazz reharmonization)
+    [1, 5, 2, 4], // ii - vi - iii - V (chromatic bass feel)
+  ];
+  const transSeq = pick(transitionSequences);
+  const transition = transSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+
+  // Ending: resolves back to tonic, provides closure, strong final cadence
+  const endingSequences: number[][] = [
+    [5, 1, 4, 0], // vi - ii - V - I (authentic cadence)
+    [4, 3, 4, 0], // V - IV - V - I (plagal-authentic hybrid)
+    [2, 5, 1, 0], // iii - vi - ii - I (circle back)
+    [3, 4, 0, 0], // IV - V - I - I (IV-V-I resolution, double I)
+    [1, 4, 5, 0], // ii - V - vi - I (deceptive then resolve)
+  ];
+  const endSeq = pick(endingSequences);
+  const ending = endSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+
+  const keyName = `${rootNames[tonicIndex]}${mode === 'minor' ? 'm' : ''}`;
+  return { intro, transition, ending, key: keyName, mode };
 }
