@@ -4,6 +4,7 @@ import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
 import { renderScore } from './render/osmdRender';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
+import { generateChordProgression } from './theory/progressionGenerator';
 import type { NoteEvent, Score } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -66,6 +67,18 @@ app.innerHTML = `
   <div class="midi-status" id="midiStatus"></div>
 </section>
 
+<section class="panel">
+  <h2>3. Generate chord progressions</h2>
+  <p style="opacity: 0.8; font-size: 14px; margin-bottom: 16px;">Composer's aid: generates a line of professional jazz chords (Cm7 – Fm7 – Bb7 – Ebmaj9 style) in a random key. Click to get fresh ideas.</p>
+  <div class="controls-row">
+    <button class="primary" id="generateButton">✨ Generate progression</button>
+  </div>
+  <div id="generatedProgression" class="generated-chord-output" hidden>
+    <div class="progression-line" id="progressionLine"></div>
+    <div class="progression-meta" id="progressionMeta"></div>
+  </div>
+</section>
+
 <section class="panel" id="scoreSection" hidden>
   <h2>Sheet music</h2>
   <div class="score-meta" id="scoreMeta"></div>
@@ -94,6 +107,10 @@ const scoreMeta = document.querySelector<HTMLDivElement>('#scoreMeta')!;
 const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
+const generateButton = document.querySelector<HTMLButtonElement>('#generateButton')!;
+const generatedProgression = document.querySelector<HTMLDivElement>('#generatedProgression')!;
+const progressionLine = document.querySelector<HTMLDivElement>('#progressionLine')!;
+const progressionMeta = document.querySelector<HTMLDivElement>('#progressionMeta')!;
 
 let selectedFile: File | undefined;
 let midiSession: MidiSession | undefined;
@@ -230,4 +247,11 @@ midiButton.addEventListener('click', async () => {
     console.error(err);
     midiStatus.textContent = err instanceof Error ? err.message : 'Could not connect to MIDI.';
   }
+});
+
+generateButton.addEventListener('click', () => {
+  const progression = generateChordProgression();
+  progressionLine.textContent = progression.line;
+  progressionMeta.textContent = `Key: ${progression.key} (${progression.mode})`;
+  generatedProgression.hidden = false;
 });
