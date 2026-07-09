@@ -37,8 +37,16 @@ function scoreTemplate(root: number, template: ChordTemplate, observed: Set<numb
   return score;
 }
 
-/** Finds the best-fitting chord (root + quality) for a set of simultaneously-sounding pitch classes. */
-function detectChord(observed: Set<number>, bassPc: number | undefined): { root: number; suffix: string; mxmlKind: string } | undefined {
+/**
+ * Finds the best-fitting chord (root + quality) for a set of
+ * simultaneously-sounding pitch classes. Exported for reuse by live-listening
+ * mode, which matches chords frame-by-frame from a mic chroma vector instead
+ * of from quantized notes.
+ */
+export function detectChord(
+  observed: Set<number>,
+  bassPc: number | undefined
+): { root: number; suffix: string; mxmlKind: string } | undefined {
   if (observed.size < MIN_DISTINCT_PITCH_CLASSES) return undefined;
 
   let best: { root: number; suffix: string; mxmlKind: string; score: number } | undefined;

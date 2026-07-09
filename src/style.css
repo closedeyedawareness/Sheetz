@@ -385,6 +385,27 @@ button.secondary:hover,
   opacity: 0.85;
 }
 
+.live-listen-display {
+  margin-top: 16px;
+  padding: 16px 20px;
+  background: rgba(255, 116, 130, 0.08);
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+}
+.live-chord {
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent-2);
+  letter-spacing: 0.03em;
+}
+.live-meta {
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.75;
+  color: var(--gold);
+}
+
 .generated-chord-output {
   margin-top: 16px;
   padding: 16px;

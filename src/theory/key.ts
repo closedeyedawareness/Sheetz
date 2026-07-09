@@ -60,17 +60,13 @@ function rotate(profile: number[], tonic: number): number[] {
 }
 
 /**
- * Detects the most likely key using the Krumhansl-Schmuckler algorithm: build a
- * duration-weighted pitch-class histogram, then correlate it against major/minor
- * key profiles rotated to all 12 tonics, and pick the best match.
+ * Krumhansl-Schmuckler key detection from a raw pitch-class weight histogram
+ * (12 entries, index 0 = C): correlates it against major/minor key profiles
+ * rotated to all 12 tonics and picks the best match. Shared by the file-based
+ * detector below and by live-listening mode, which accumulates its own
+ * chroma-derived weights frame by frame.
  */
-export function detectKey(notes: NoteEvent[]): KeyInfo {
-  const pitchClassWeight = new Array(12).fill(0);
-  for (const note of notes) {
-    const pc = ((note.pitchMidi % 12) + 12) % 12;
-    pitchClassWeight[pc] += note.durationSeconds * (0.3 + note.amplitude);
-  }
-
+export function detectKeyFromPitchWeights(pitchClassWeight: number[]): KeyInfo {
   let best = { tonic: 0, mode: 'major' as 'major' | 'minor', correlation: -Infinity };
   for (let tonic = 0; tonic < 12; tonic++) {
     const majorScore = correlation(pitchClassWeight, rotate(MAJOR_PROFILE, tonic));
@@ -90,4 +86,18 @@ export function detectKey(notes: NoteEvent[]): KeyInfo {
     fifths: spec.accidental === 'b' ? -spec.num : spec.num,
     correlation: best.correlation,
   };
+}
+
+/**
+ * Detects the most likely key of a finished note list: builds a
+ * duration-weighted pitch-class histogram, then delegates to
+ * {@link detectKeyFromPitchWeights}.
+ */
+export function detectKey(notes: NoteEvent[]): KeyInfo {
+  const pitchClassWeight = new Array(12).fill(0);
+  for (const note of notes) {
+    const pc = ((note.pitchMidi % 12) + 12) % 12;
+    pitchClassWeight[pc] += note.durationSeconds * (0.3 + note.amplitude);
+  }
+  return detectKeyFromPitchWeights(pitchClassWeight);
 }

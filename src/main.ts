@@ -1,5 +1,6 @@
 import './style.css';
 import { decodeAudioFile } from './audio/decode';
+import { startLiveListen, type LiveListenSession } from './audio/liveListen';
 import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
 import { exportScoreToPdf } from './render/exportPdf';
@@ -15,7 +16,7 @@ app.innerHTML = `
   <p class="eyebrow">✦ AI-assisted transcription</p>
   <img class="brand-logo" src="/logo.png" alt="Sheetz" width="220" height="220" />
   <p class="tagline">A pianist's dream</p>
-  <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, or play a connected MIDI keyboard live.</p>
+  <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, play a connected MIDI keyboard live, or listen through your microphone.</p>
 </header>
 
 <section class="panel">
@@ -69,7 +70,23 @@ app.innerHTML = `
 </section>
 
 <section class="panel">
-  <h2>3. Generate chord progressions</h2>
+  <h2>3. Or listen live via microphone</h2>
+  <p style="opacity: 0.8; font-size: 14px; margin-bottom: 16px;">
+    Play into your device's mic and watch the key and chord update as you go. When you stop, the full take is
+    transcribed into notation just like an uploaded file.
+  </p>
+  <button class="secondary" id="liveListenButton">Start listening</button>
+  <div class="midi-status" id="liveListenStatus"></div>
+  <div class="live-listen-display" id="liveListenDisplay" hidden>
+    <div class="live-chord" id="liveChordText">—</div>
+    <div class="live-meta">
+      <span id="liveKeyText"></span> <span aria-hidden="true">·</span> <span id="liveTimeText">0:00</span>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2>4. Generate chord progressions</h2>
   <p style="opacity: 0.8; font-size: 14px; margin-bottom: 16px;">Composer's aid: generates professional jazz chords in a random key. Click to get fresh ideas.</p>
   <div class="controls-row">
     <button class="primary" id="generateButton">✨ One-line progression</button>
@@ -130,6 +147,12 @@ const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
 const downloadPdfButton = document.querySelector<HTMLButtonElement>('#downloadPdfButton')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
+const liveListenButton = document.querySelector<HTMLButtonElement>('#liveListenButton')!;
+const liveListenStatus = document.querySelector<HTMLDivElement>('#liveListenStatus')!;
+const liveListenDisplay = document.querySelector<HTMLDivElement>('#liveListenDisplay')!;
+const liveChordText = document.querySelector<HTMLDivElement>('#liveChordText')!;
+const liveKeyText = document.querySelector<HTMLSpanElement>('#liveKeyText')!;
+const liveTimeText = document.querySelector<HTMLSpanElement>('#liveTimeText')!;
 const generateButton = document.querySelector<HTMLButtonElement>('#generateButton')!;
 const generateStructuredButton = document.querySelector<HTMLButtonElement>('#generateStructuredButton')!;
 const generatedProgression = document.querySelector<HTMLDivElement>('#generatedProgression')!;
@@ -143,6 +166,14 @@ const endingLine = document.querySelector<HTMLDivElement>('#endingLine')!;
 
 let selectedFile: File | undefined;
 let midiSession: MidiSession | undefined;
+let liveListenSession: LiveListenSession | undefined;
+
+function formatElapsed(totalSeconds: number): string {
+  const whole = Math.floor(totalSeconds);
+  const minutes = Math.floor(whole / 60);
+  const seconds = whole % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 function setStatus(message: string, kind: 'info' | 'error' | '' = ''): void {
   statusEl.textContent = message;
@@ -222,15 +253,17 @@ dropzone.addEventListener('drop', (e) => {
   if (file) pickFile(file);
 });
 
-analyzeButton.addEventListener('click', async () => {
-  if (!selectedFile) return;
-  analyzeButton.disabled = true;
+/**
+ * Shared by file-upload analysis and live-mic recordings: decodes, runs
+ * basic-pitch, and renders a score, or reports why nothing came out.
+ */
+async function transcribeAndShow(source: Blob, notFoundMessage: string, genericErrorMessage: string): Promise<void> {
   progressBar.hidden = false;
   progressFill.style.width = '0%';
 
   try {
     setStatus('Decoding audio…', 'info');
-    const audioBuffer = await decodeAudioFile(selectedFile);
+    const audioBuffer = await decodeAudioFile(source);
 
     setStatus('Running pitch detection (this can take a little while for longer recordings)…', 'info');
     const notes: NoteEvent[] = await transcribeAudio(audioBuffer, (fraction) => {
@@ -238,7 +271,7 @@ analyzeButton.addEventListener('click', async () => {
     });
 
     if (notes.length === 0) {
-      setStatus('No notes were detected in this recording. Try a clearer solo piano take.', 'error');
+      setStatus(notFoundMessage, 'error');
       return;
     }
 
@@ -252,11 +285,21 @@ analyzeButton.addEventListener('click', async () => {
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
     console.error(err);
-    setStatus(err instanceof Error ? err.message : 'Something went wrong analyzing this file.', 'error');
+    setStatus(err instanceof Error ? err.message : genericErrorMessage, 'error');
   } finally {
-    analyzeButton.disabled = false;
     progressBar.hidden = true;
   }
+}
+
+analyzeButton.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  analyzeButton.disabled = true;
+  await transcribeAndShow(
+    selectedFile,
+    'No notes were detected in this recording. Try a clearer solo piano take.',
+    'Something went wrong analyzing this file.'
+  );
+  analyzeButton.disabled = false;
 });
 
 midiButton.addEventListener('click', async () => {
@@ -282,6 +325,45 @@ midiButton.addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     midiStatus.textContent = err instanceof Error ? err.message : 'Could not connect to MIDI.';
+  }
+});
+
+liveListenButton.addEventListener('click', async () => {
+  if (liveListenSession) {
+    const session = liveListenSession;
+    liveListenSession = undefined;
+    liveListenButton.disabled = true;
+    liveListenButton.textContent = 'Transcribing…';
+    liveListenDisplay.hidden = true;
+    liveListenStatus.textContent = '';
+    try {
+      const recording = await session.stop();
+      await transcribeAndShow(
+        recording,
+        'No notes were detected in that take. Try playing a bit louder or closer to the mic.',
+        'Something went wrong transcribing your recording.'
+      );
+    } finally {
+      liveListenButton.disabled = false;
+      liveListenButton.textContent = 'Start listening';
+    }
+    return;
+  }
+
+  try {
+    liveListenSession = await startLiveListen((update) => {
+      liveListenDisplay.hidden = false;
+      liveChordText.textContent = update.chordLabel ?? '—';
+      liveKeyText.textContent = `${update.key.name}${update.key.mode === 'major' ? ' major' : ' minor'}`;
+      liveTimeText.textContent = formatElapsed(update.elapsedSeconds);
+    });
+    liveListenButton.textContent = 'Stop & transcribe';
+    liveListenStatus.textContent = liveListenSession.deviceLabel
+      ? `Listening on: ${liveListenSession.deviceLabel}. Play — the chord and key update as you go.`
+      : 'Listening — the chord and key update as you go.';
+  } catch (err) {
+    console.error(err);
+    liveListenStatus.textContent = err instanceof Error ? err.message : 'Could not access the microphone.';
   }
 });
 

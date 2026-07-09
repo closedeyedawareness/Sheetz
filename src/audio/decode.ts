@@ -2,10 +2,12 @@
 const BASIC_PITCH_SAMPLE_RATE = 22050;
 
 /**
- * Decodes an uploaded .wav/.mp3/.ogg/.flac file and resamples it to the mono
- * 22050 Hz format basic-pitch requires.
+ * Decodes an uploaded audio file (or a recorded mic Blob) and resamples it to
+ * the mono 22050 Hz format basic-pitch requires. Typed as `Blob` rather than
+ * `File` so MediaRecorder output — which is a Blob, not a File — can be
+ * passed straight through after live-listening mode stops.
  */
-export async function decodeAudioFile(file: File): Promise<AudioBuffer> {
+export async function decodeAudioFile(file: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await file.arrayBuffer();
   const audioCtx = new AudioContext();
   let decoded: AudioBuffer;
