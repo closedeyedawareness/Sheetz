@@ -71,6 +71,13 @@ export interface TimeSignatureInfo {
   ticksPerMeasure: number;
 }
 
+/** A music-theory chord substitution suggestion (relabel only, never rewrites notation). */
+export interface ChordAlternative {
+  root: number;
+  suffix: string;
+  label: string;
+}
+
 /** A detected chord symbol (e.g. "Dm7"), shown at the measure where the harmony changes. */
 export interface ChordSymbol {
   measureIndex: number;
@@ -80,6 +87,9 @@ export interface ChordSymbol {
   suffix: string;
   /** MusicXML <kind> value, e.g. 'major', 'minor-seventh'. */
   mxmlKind: string;
+  /** Display text, e.g. "Dm7". */
+  label: string;
+  alternatives: ChordAlternative[];
 }
 
 export interface Score {

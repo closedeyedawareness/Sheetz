@@ -1,4 +1,5 @@
-import type { ChordSymbol, QuantizedNote } from '../types';
+import type { ChordSymbol, KeyInfo, QuantizedNote } from '../types';
+import { chordLabel, getChordAlternatives } from './chordSubstitutions';
 
 interface ChordTemplate {
   suffix: string;
@@ -58,7 +59,12 @@ function detectChord(observed: Set<number>, bassPc: number | undefined): { root:
  * only where it changes from the previous measure, so the same chord held
  * across several bars is labeled once rather than repeated on every measure.
  */
-export function detectChordProgression(notes: QuantizedNote[], ticksPerMeasure: number, totalMeasures: number): ChordSymbol[] {
+export function detectChordProgression(
+  notes: QuantizedNote[],
+  ticksPerMeasure: number,
+  totalMeasures: number,
+  key: KeyInfo
+): ChordSymbol[] {
   const symbols: ChordSymbol[] = [];
   let lastLabel: string | undefined;
 
@@ -75,10 +81,17 @@ export function detectChordProgression(notes: QuantizedNote[], ticksPerMeasure: 
     const chord = detectChord(pitchClasses, bassPc);
     if (!chord) continue;
 
-    const label = `${chord.root}${chord.suffix}`;
-    if (label === lastLabel) continue;
-    lastLabel = label;
-    symbols.push({ measureIndex: m, root: chord.root, suffix: chord.suffix, mxmlKind: chord.mxmlKind });
+    const dedupeKey = `${chord.root}${chord.suffix}`;
+    if (dedupeKey === lastLabel) continue;
+    lastLabel = dedupeKey;
+    symbols.push({
+      measureIndex: m,
+      root: chord.root,
+      suffix: chord.suffix,
+      mxmlKind: chord.mxmlKind,
+      label: chordLabel(chord.root, chord.suffix, key),
+      alternatives: getChordAlternatives(chord, key),
+    });
   }
 
   return symbols;
