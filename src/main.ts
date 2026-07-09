@@ -2,6 +2,7 @@ import './style.css';
 import { decodeAudioFile } from './audio/decode';
 import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
+import { exportScoreToPdf } from './render/exportPdf';
 import { renderScore } from './render/osmdRender';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
 import { generateChordProgression, generateStructuredProgression } from './theory/progressionGenerator';
@@ -98,7 +99,10 @@ app.innerHTML = `
 </section>
 
 <section class="panel" id="scoreSection" hidden>
-  <h2>Sheet music</h2>
+  <div class="score-header">
+    <h2>Sheet music</h2>
+    <button class="secondary" id="downloadPdfButton">Download PDF</button>
+  </div>
   <div class="score-meta" id="scoreMeta"></div>
   <p class="scroll-hint">↔ Scroll sideways to read across each line</p>
   <div id="scoreContainer"><div id="scoreInner"></div></div>
@@ -123,6 +127,7 @@ const progressFill = document.querySelector<HTMLDivElement>('#progressFill')!;
 const scoreSection = document.querySelector<HTMLElement>('#scoreSection')!;
 const scoreMeta = document.querySelector<HTMLDivElement>('#scoreMeta')!;
 const scoreInner = document.querySelector<HTMLDivElement>('#scoreInner')!;
+const downloadPdfButton = document.querySelector<HTMLButtonElement>('#downloadPdfButton')!;
 const midiButton = document.querySelector<HTMLButtonElement>('#midiButton')!;
 const midiStatus = document.querySelector<HTMLDivElement>('#midiStatus')!;
 const generateButton = document.querySelector<HTMLButtonElement>('#generateButton')!;
@@ -173,11 +178,18 @@ function describeScore(score: Score): string {
   `;
 }
 
+function pdfFilename(score: Score): string {
+  const base = [score.title, score.artist].filter((s): s is string => Boolean(s)).join(' - ') || 'sheet-music';
+  return `${base.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
+}
+
 // OSMD isn't safe to invoke concurrently, so overlapping showScore() calls
 // (e.g. rapid MIDI note releases) are chained rather than run in parallel.
 let renderLock: Promise<void> = Promise.resolve();
+let lastScore: Score | undefined;
 
 function showScore(score: Score): Promise<void> {
+  lastScore = score;
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
   // Reflects whatever meter was actually used (including auto-detected) back into the
@@ -289,4 +301,20 @@ generateStructuredButton.addEventListener('click', () => {
   structuredMeta.textContent = `Key: ${structured.key} (${structured.mode})`;
   generatedStructured.hidden = false;
   generatedProgression.hidden = true;
+});
+
+downloadPdfButton.addEventListener('click', async () => {
+  if (!lastScore) return;
+  downloadPdfButton.disabled = true;
+  const originalText = downloadPdfButton.textContent;
+  downloadPdfButton.textContent = 'Generating PDF…';
+  try {
+    await exportScoreToPdf(scoreInner, pdfFilename(lastScore));
+  } catch (err) {
+    console.error(err);
+    setStatus(err instanceof Error ? err.message : 'Could not generate the PDF.', 'error');
+  } finally {
+    downloadPdfButton.disabled = false;
+    downloadPdfButton.textContent = originalText;
+  }
 });

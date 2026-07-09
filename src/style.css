@@ -218,6 +218,17 @@ button.secondary:hover,
   transition: width 0.2s;
 }
 
+.score-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.score-header h2 {
+  margin: 0;
+}
+
 .score-meta {
   display: flex;
   gap: 24px;
