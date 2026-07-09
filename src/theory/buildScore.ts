@@ -39,7 +39,7 @@ export function buildScore(notes: NoteEvent[], options: BuildScoreOptions = {}):
     key,
     treble: buildStaffPart(treble, 'treble', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
     bass: buildStaffPart(bass, 'bass', timeSignature.ticksPerMeasure, secondsPerTick, sharedTotalTicks),
-    chords: detectChordProgression(quantized, timeSignature.ticksPerMeasure, totalMeasures),
+    chords: detectChordProgression(quantized, timeSignature.ticksPerMeasure, totalMeasures, key),
     title: options.title,
     artist: options.artist,
   };

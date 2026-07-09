@@ -1,5 +1,6 @@
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import type { Score } from '../types';
+import { renderChordOverlay } from './chordOverlay';
 import { scoreToMusicXml } from './musicXml';
 
 /**
@@ -19,4 +20,5 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
   });
   await osmd.load(scoreToMusicXml(score));
   osmd.render();
+  renderChordOverlay(container, score);
 }

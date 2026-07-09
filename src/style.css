@@ -258,6 +258,7 @@ button.secondary:hover {
    notation squeezed into ~350px gets illegibly cramped. Narrow screens
    scroll/pinch-zoom to read it instead of the engraving shrinking to fit. */
 #scoreInner {
+  position: relative;
   min-width: 900px;
   counter-reset: sheet-page;
 }
@@ -283,6 +284,76 @@ button.secondary:hover {
   right: 18px;
   font-size: 12px;
   color: #9a8f6a;
+}
+
+/* Clickable overlay sitting on top of each rendered chord symbol (see
+   src/render/chordOverlay.ts), offering alternative chord suggestions.
+   Positioned in real pixels computed from the underlying SVG text, so left/
+   top/width/height are always set inline per box rather than here. */
+.chord-box {
+  position: absolute;
+  border: 1px dashed rgba(255, 116, 130, 0.55);
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.chord-box:hover {
+  background: rgba(255, 116, 130, 0.14);
+  border-style: solid;
+}
+.chord-box.picked {
+  background: #fffdf8;
+  border-style: solid;
+  border-color: var(--accent);
+}
+.chord-box-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.chord-popover {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  background: #1c1730;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.chord-alt {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-h);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chord-alt:hover {
+  background: rgba(255, 116, 130, 0.25);
+}
+.chord-alt-reset {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  opacity: 0.7;
 }
 
 .limitations {
