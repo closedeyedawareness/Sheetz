@@ -35,8 +35,8 @@ app.innerHTML = `
   <h2>1. Import audio</h2>
   <label class="dropzone" id="dropzone">
     <input type="file" id="fileInput" accept=".wav,.mp3,.ogg,.flac,audio/*" />
-    <div>Drop a .wav or .mp3 file here, or click to choose one</div>
-    <div class="hint">Best results with solo piano recordings. Processing happens entirely in your browser.</div>
+    <span class="dropzone-cta">Choose audio file</span>
+    <div class="hint">or drag and drop a .wav or .mp3 here — best results with solo piano recordings, processed entirely in your browser.</div>
   </label>
 
   <div class="controls-row">
