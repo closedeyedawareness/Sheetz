@@ -257,14 +257,27 @@ dropzone.addEventListener('drop', (e) => {
  * Shared by file-upload analysis and live-mic recordings: decodes, runs
  * basic-pitch, and renders a score, or reports why nothing came out.
  */
-async function transcribeAndShow(source: Blob, notFoundMessage: string, genericErrorMessage: string): Promise<void> {
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message || err.name || String(err);
+  return String(err);
+}
+
+async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise<void> {
   progressBar.hidden = false;
   progressFill.style.width = '0%';
 
+  let audioBuffer;
   try {
     setStatus('Decoding audio…', 'info');
-    const audioBuffer = await decodeAudioFile(source);
+    audioBuffer = await decodeAudioFile(source);
+  } catch (err) {
+    console.error('decodeAudioFile failed', err);
+    setStatus(`Could not decode that recording (${describeError(err)}).`, 'error');
+    progressBar.hidden = true;
+    return;
+  }
 
+  try {
     setStatus('Running pitch detection (this can take a little while for longer recordings)…', 'info');
     const notes: NoteEvent[] = await transcribeAudio(audioBuffer, (fraction) => {
       progressFill.style.width = `${Math.round(fraction * 100)}%`;
@@ -284,8 +297,8 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string, genericE
     await showScore(score);
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
-    console.error(err);
-    setStatus(err instanceof Error ? err.message : genericErrorMessage, 'error');
+    console.error('transcription failed', err);
+    setStatus(`Pitch detection failed (${describeError(err)}).`, 'error');
   } finally {
     progressBar.hidden = true;
   }
@@ -294,11 +307,7 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string, genericE
 analyzeButton.addEventListener('click', async () => {
   if (!selectedFile) return;
   analyzeButton.disabled = true;
-  await transcribeAndShow(
-    selectedFile,
-    'No notes were detected in this recording. Try a clearer solo piano take.',
-    'Something went wrong analyzing this file.'
-  );
+  await transcribeAndShow(selectedFile, 'No notes were detected in this recording. Try a clearer solo piano take.');
   analyzeButton.disabled = false;
 });
 
@@ -340,8 +349,7 @@ liveListenButton.addEventListener('click', async () => {
       const recording = await session.stop();
       await transcribeAndShow(
         recording,
-        'No notes were detected in that take. Try playing a bit louder or closer to the mic.',
-        'Something went wrong transcribing your recording.'
+        'No notes were detected in that take. Try playing a bit louder or closer to the mic.'
       );
     } finally {
       liveListenButton.disabled = false;
