@@ -294,17 +294,30 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise
     return;
   }
 
+  let notes: NoteEvent[];
   try {
     setStatus('Running pitch detection (this can take a little while for longer recordings)…', 'info');
-    const notes: NoteEvent[] = await transcribeAudio(audioBuffer, (fraction) => {
+    notes = await transcribeAudio(audioBuffer, (fraction) => {
       progressFill.style.width = `${Math.round(fraction * 100)}%`;
     });
+  } catch (err) {
+    console.error('pitch detection failed', err);
+    setStatus(`Pitch detection failed (${describeError(err)}).`, 'error');
+    progressBar.hidden = true;
+    return;
+  }
 
-    if (notes.length === 0) {
-      setStatus(notFoundMessage, 'error');
-      return;
-    }
+  if (notes.length === 0) {
+    setStatus(notFoundMessage, 'error');
+    progressBar.hidden = true;
+    return;
+  }
 
+  // Pitch detection succeeded past this point. Building/rendering the score is a
+  // separate failure domain — don't report an engraving error as "Pitch detection
+  // failed", which sent people chasing the wrong problem (and hid that the notes
+  // were actually detected fine).
+  try {
     const tempoOverride = tempoInput.value ? Number(tempoInput.value) : undefined;
     const score = buildScore(notes, {
       tempoBpm: tempoOverride,
@@ -314,8 +327,12 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise
     await showScore(score);
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
-    console.error('transcription failed', err);
-    setStatus(`Pitch detection failed (${describeError(err)}).`, 'error');
+    console.error('building/rendering the score failed', err);
+    setStatus(
+      `Detected ${notes.length} notes, but couldn't render the sheet music (${describeError(err)}). ` +
+        'The full details were logged to the browser console (open DevTools → Console).',
+      'error'
+    );
   } finally {
     progressBar.hidden = true;
   }

@@ -93,6 +93,13 @@ header {
 }
 
 .dropzone {
+  /* A <label> is inline by default; with a block-level .hint child that forces
+     the inline border to fragment across lines, rendering as a broken box.
+     Make it a real block-level flex column so the dashed border encloses the
+     whole dropzone as one rounded rectangle. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   border: 1.5px dashed var(--accent-border);
   border-radius: 16px;
   padding: 40px 20px;

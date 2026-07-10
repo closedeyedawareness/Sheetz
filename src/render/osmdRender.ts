@@ -18,7 +18,16 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
     drawComposer: Boolean(score.artist?.trim()),
     drawPartNames: false,
   });
-  await osmd.load(scoreToMusicXml(score));
-  osmd.render();
+  const musicXml = scoreToMusicXml(score);
+  try {
+    await osmd.load(musicXml);
+    osmd.render();
+  } catch (err) {
+    // OSMD failures (e.g. its internal "clefType" ArgumentOutOfRangeException) are
+    // opaque without the input that caused them. Dump the exact MusicXML we fed it
+    // so a recurrence is reproducible from the console instead of a mystery string.
+    console.error('OSMD failed to render this score. MusicXML that triggered it:\n', musicXml, '\nScore:', score, '\nError:', err);
+    throw err;
+  }
   renderChordOverlay(container, score);
 }
