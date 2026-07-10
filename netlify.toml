@@ -1,0 +1,19 @@
+# Netlify build config for Sheetz (transcription app at / and the game at /game.html).
+# Static Vite multi-page build — no backend, no env vars, no Supabase needed.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Long-cache the fingerprinted assets and the bundled .mid songs.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/songs/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
