@@ -475,6 +475,24 @@ button.secondary:hover,
   }
 }
 
+/* Hero banner linking to the arcade game (generated key art). */
+.game-hero {
+  display: block; position: relative; width: 100%; max-width: 560px; margin: 22px auto 0;
+  border-radius: 16px; overflow: hidden; text-decoration: none;
+  border: 1px solid rgba(84, 230, 255, 0.3);
+  box-shadow: 0 16px 44px -18px rgba(84, 230, 255, 0.45);
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.game-hero img { display: block; width: 100%; height: auto; }
+.game-hero-cta {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  background: linear-gradient(180deg, #9ff0ff, #54e6ff); color: #06131a; font-weight: 800;
+  padding: 10px 24px; border-radius: 999px; font-size: 14px; white-space: nowrap;
+  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.6);
+}
+.game-hero:hover { transform: translateY(-2px); box-shadow: 0 24px 56px -18px rgba(84, 230, 255, 0.6); }
+.game-hero:hover .game-hero-cta { filter: brightness(1.06); }
+
 /* Link from the transcription app to the arcade game. */
 .game-link {
   display: inline-block;

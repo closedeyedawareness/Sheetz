@@ -60,7 +60,7 @@ rootEl.innerHTML = `
     <canvas id="game"></canvas>
     <div class="piano-case"><div class="piano" id="piano"></div></div>
     <div class="scanlines"></div>
-    <div class="overlay" id="overlay">
+    <div class="overlay splash" id="overlay">
       <h2 id="ovTitle">Play the song. Blast the invasion.</h2>
       <p id="ovText">Notes fall down each key's lane — the lowest is next to play. Can't read notes? Watch the keys: the one to play flickers red as it nears, then turns green — play on green. Use a MIDI keyboard, the computer keys, or tap.</p>
       <button class="btn" id="startBtn">▶ Start</button>
@@ -445,7 +445,7 @@ async function start() {
   const keepTheme = theme; state = freshState(); void keepTheme;
   updateHUD();
   startAt = synth.now() + 0.5; sinceStart = 0; running = true;
-  overlay.classList.add('hidden'); playBtn.textContent = '⏸ Stop';
+  overlay.classList.remove('splash'); overlay.classList.add('hidden'); playBtn.textContent = '⏸ Stop';
   cancelAnimationFrame(rafId); rafId = requestAnimationFrame(loop);
 }
 function stop() { running = false; cancelAnimationFrame(rafId); if (synth) { synth.ctx.close(); synth = null; } clearCues(); playBtn.textContent = '▶ Start'; }

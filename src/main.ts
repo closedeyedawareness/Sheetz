@@ -18,7 +18,10 @@ app.innerHTML = `
   <img class="brand-logo" src="/logo.png" alt="Sheetz" width="220" height="220" />
   <p class="tagline">A pianist's dream</p>
   <p class="subtitle">Upload a solo piano recording and get notated grand-staff sheet music, play a connected MIDI keyboard live, or listen through your microphone.</p>
-  <a class="game-link" href="/game.html">🎹🔫 New — play <b>Sheetz Shooter</b>: learn piano as an arcade game →</a>
+  <a class="game-hero" href="/game.html" aria-label="Play Sheetz Shooter — an arcade game to learn piano">
+    <img src="/keyart.webp" alt="Sheetz Shooter — Play · Shoot · Learn" width="1600" height="893" />
+    <span class="game-hero-cta">▶ Play the game</span>
+  </a>
 </header>
 
 <section class="panel">
