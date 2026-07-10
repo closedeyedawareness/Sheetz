@@ -397,7 +397,7 @@ function drawNote(a: Alien) {
   if (a.hold) { const tail = a.dur * fallPPS(); ctx.save(); ctx.globalAlpha = a.holding ? 0.85 : 0.5; ctx.strokeStyle = a.hand === 'L' ? '#ffcf6a' : theme.laser; ctx.lineWidth = Math.max(4, whiteW() * 0.35); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, a.y - tail); ctx.stroke(); ctx.restore(); }
   ctx.save();
   if (a.resolved === 'miss') ctx.globalAlpha = 0.4;
-  theme.enemy(ctx, a.x, a.holding ? line : a.y, { midi: a.midi, hand: a.hand, flash: a.flash, hold: a.hold, boss: false, r: 13 }, sinceStart);
+  theme.enemy(ctx, a.x, a.holding ? line : a.y, { midi: a.midi, hand: a.hand, flash: a.flash, hold: a.hold, boss: false, r: 15 }, sinceStart);
   ctx.restore();
   ctx.fillStyle = '#eef1fb'; ctx.font = '700 10px ui-monospace, monospace'; ctx.textAlign = 'center';
   ctx.fillText(noteName(a.midi), a.x, (a.holding ? line : a.y) - 18);

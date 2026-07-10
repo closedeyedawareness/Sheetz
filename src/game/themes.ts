@@ -37,39 +37,59 @@ const space: Theme = {
   laser: '#3ea0ff', laserCore: '#dff0ff', laneGlow: 'rgba(62,160,255,0.16)', impact: '#8fd0ff', fieldDir: 1,
   bg(ctx, W, H, _t, field) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#0a0b26'); g.addColorStop(0.55, '#080718'); g.addColorStop(1, '#04040c');
+    g.addColorStop(0, '#2a0f45'); g.addColorStop(0.5, '#180a2e'); g.addColorStop(1, '#0a0416');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    const neb = ctx.createRadialGradient(W * 0.75, H * 0.28, 20, W * 0.75, H * 0.28, W * 0.6);
-    neb.addColorStop(0, 'rgba(120,60,200,0.2)'); neb.addColorStop(1, 'transparent');
-    ctx.fillStyle = neb; ctx.fillRect(0, 0, W, H);
-    for (const s of field) { ctx.globalAlpha = 0.35 + s.z * 0.6; ctx.fillStyle = '#dfefff'; ctx.fillRect(s.x, s.y, s.z * 1.6, s.z * 1.6); }
+    const n1 = ctx.createRadialGradient(W * 0.72, H * 0.3, 20, W * 0.72, H * 0.3, W * 0.55);
+    n1.addColorStop(0, 'rgba(180,70,200,0.22)'); n1.addColorStop(1, 'transparent');
+    ctx.fillStyle = n1; ctx.fillRect(0, 0, W, H);
+    const n2 = ctx.createRadialGradient(W * 0.2, H * 0.55, 10, W * 0.2, H * 0.55, W * 0.5);
+    n2.addColorStop(0, 'rgba(60,120,220,0.16)'); n2.addColorStop(1, 'transparent');
+    ctx.fillStyle = n2; ctx.fillRect(0, 0, W, H);
+    for (const s of field) { ctx.globalAlpha = 0.35 + s.z * 0.6; ctx.fillStyle = '#eaf0ff'; ctx.fillRect(s.x, s.y, s.z * 1.6, s.z * 1.6); }
     ctx.globalAlpha = 1;
   },
+  // Cute smiling neon UFO matching the key-art render.
   enemy(ctx, x, y, o, t) {
-    const wob = Math.sin(t / 220 + x) * 3; const cx = x + wob, r = o.r * (o.boss ? 2.2 : 1);
-    const glass = o.flash > 0 ? '#ff6b7a' : (o.hand === 'L' ? '#ffcf6a' : '#8affc1');
+    const wob = Math.sin(t / 240 + x) * 2;
+    const cx = x + wob, r = o.r * (o.boss ? 2.3 : 1);
+    const CYAN = '#5fe4ff', PINK = '#ff74b0';
+    const dome = o.flash > 0 ? '#ff6b7a' : (o.hand === 'L' ? PINK : CYAN);
+    const rim = o.flash > 0 ? '#ff3b5c' : (o.hand === 'L' ? CYAN : PINK);
     ctx.save();
-    if (o.hold) { ctx.strokeStyle = 'rgba(138,255,193,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx, y + r * 1.6); ctx.stroke(); }
-    ctx.shadowColor = glass; ctx.shadowBlur = 14; ctx.fillStyle = o.flash > 0 ? '#5a1720' : '#2a2f4a';
-    ctx.beginPath(); ctx.ellipse(cx, y + 4, r * 1.35, r * 0.5, 0, 0, 6.2832); ctx.fill(); ctx.shadowBlur = 0;
-    const dg = ctx.createRadialGradient(cx - r * 0.3, y - r * 0.4, 2, cx, y, r * 0.95);
-    dg.addColorStop(0, '#fff'); dg.addColorStop(0.4, glass); dg.addColorStop(1, 'rgba(20,20,40,0.6)');
-    ctx.fillStyle = dg; roundEllipseDome(ctx, cx, y, r * 0.72);
-    ctx.fillStyle = '#0a0a18';
-    ctx.beginPath(); ctx.ellipse(cx - r * 0.22, y - r * 0.18, r * 0.11, r * 0.16, 0, 0, 6.2832); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx + r * 0.22, y - r * 0.18, r * 0.11, r * 0.16, 0, 0, 6.2832); ctx.fill();
+    // saucer body: dark, ringed with a glowing neon rim
+    ctx.shadowColor = rim; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#241040';
+    ctx.beginPath(); ctx.ellipse(cx, y + r * 0.34, r * 1.4, r * 0.5, 0, 0, 6.2832); ctx.fill();
+    ctx.lineWidth = Math.max(2, r * 0.12); ctx.strokeStyle = rim;
+    ctx.beginPath(); ctx.ellipse(cx, y + r * 0.34, r * 1.4, r * 0.5, 0, 0, 6.2832); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // glossy dome
+    const dg = ctx.createRadialGradient(cx - r * 0.32, y - r * 0.35, 2, cx, y + r * 0.1, r * 1.05);
+    dg.addColorStop(0, '#ffffff'); dg.addColorStop(0.5, dome); dg.addColorStop(1, rim);
+    ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(cx, y + r * 0.16, r * 0.82, Math.PI, 0); ctx.fill();
+    ctx.lineWidth = Math.max(1.5, r * 0.08); ctx.strokeStyle = rim;
+    ctx.beginPath(); ctx.arc(cx, y + r * 0.16, r * 0.82, Math.PI, 0); ctx.stroke();
+    // happy face: eyes + highlights + smile
+    ctx.fillStyle = '#160a24';
+    ctx.beginPath(); ctx.arc(cx - r * 0.26, y - r * 0.04, r * 0.12, 0, 6.2832); ctx.arc(cx + r * 0.26, y - r * 0.04, r * 0.12, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(cx - r * 0.22, y - r * 0.09, r * 0.045, 0, 6.2832); ctx.arc(cx + r * 0.3, y - r * 0.09, r * 0.045, 0, 6.2832); ctx.fill();
+    ctx.strokeStyle = '#160a24'; ctx.lineWidth = Math.max(1.5, r * 0.07); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, y, r * 0.24, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    // glowing under-lights
+    ctx.shadowColor = rim; ctx.shadowBlur = 8; ctx.fillStyle = rim;
+    for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(cx + i * r * 0.66, y + r * 0.56, r * 0.1, 0, 6.2832); ctx.fill(); }
     ctx.restore();
   },
+  // Minimal glowing neon emitter (beams rise from the piano, as in the render — no spaceship).
   shooter(ctx, x, y, fire, t) {
+    const pulse = 0.6 + 0.4 * Math.sin(t / 200);
     ctx.save(); ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(84,230,255,0.5)'; ctx.shadowColor = '#54e6ff'; ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.moveTo(-6, 10); ctx.lineTo(0, 20 + Math.sin(t / 60) * 4); ctx.lineTo(6, 10); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
-    const hg = ctx.createLinearGradient(0, -16, 0, 12); hg.addColorStop(0, '#eaf6ff'); hg.addColorStop(0.5, '#7fb6d8'); hg.addColorStop(1, '#2b3f5e');
-    ctx.fillStyle = hg; ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(16, 10); ctx.lineTo(7, 12); ctx.lineTo(0, 8); ctx.lineTo(-7, 12); ctx.lineTo(-16, 10); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(84,230,255,0.8)'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = '#ff5d8f'; ctx.shadowColor = '#ff5d8f'; ctx.shadowBlur = 6 + fire * 10;
-    ctx.beginPath(); ctx.arc(0, -4, 4.5, 0, 6.2832); ctx.fill();
-    if (fire > 0.05) { ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 16 * fire; ctx.beginPath(); ctx.arc(0, -18, 3 + fire * 5, 0, 6.2832); ctx.fill(); }
+    ctx.shadowColor = '#5fe4ff'; ctx.shadowBlur = 14 + fire * 18;
+    ctx.fillStyle = '#eafcff';
+    ctx.beginPath(); ctx.moveTo(0, -14 - fire * 6); ctx.lineTo(11, 8); ctx.lineTo(-11, 8); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 8; ctx.fillStyle = `rgba(95,228,255,${0.5 * pulse})`;
+    ctx.beginPath(); ctx.arc(0, 6, 6, 0, 6.2832); ctx.fill();
     ctx.restore();
   },
 };
