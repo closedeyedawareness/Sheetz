@@ -259,6 +259,23 @@ dropzone.addEventListener('drop', (e) => {
  */
 function describeError(err: unknown): string {
   if (err instanceof Error) return err.message || err.name || String(err);
+  // Non-Error throws (raw objects/strings from a third-party lib) stringify to
+  // an unhelpful "[object Object]" by default — try to pull a readable message
+  // out of common shapes before falling back to that.
+  if (err && typeof err === 'object') {
+    const withMessage = err as { message?: unknown; name?: unknown };
+    if (typeof withMessage.message === 'string' && withMessage.message) {
+      return typeof withMessage.name === 'string' && withMessage.name
+        ? `${withMessage.name}: ${withMessage.message}`
+        : withMessage.message;
+    }
+    try {
+      const dumped = JSON.stringify(err, Object.getOwnPropertyNames(err));
+      if (dumped && dumped !== '{}') return dumped;
+    } catch {
+      // circular or unserializable; fall through to String(err) below.
+    }
+  }
   return String(err);
 }
 
