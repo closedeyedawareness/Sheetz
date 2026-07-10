@@ -10,10 +10,11 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 const isBlack = (m: number) => [1, 3, 6, 8, 10].includes(((m % 12) + 12) % 12);
 const noteName = (m: number) => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const hand = (m: number): 'L' | 'R' => (m < 60 ? 'L' : 'R');
-const ROWS = [0.10, 0.17, 0.24];
-const LEAD = 1.7;       // seconds an enemy forms before its note is due
-const WINDOW = 0.18;    // hit timing tolerance
-const HOLD_MIN = 0.9;   // seconds — a note this long is a sustained hold
+const LEAD = 2.2;          // seconds a note is visible falling before it reaches the line
+const PERFECT_WIN = 0.06;  // ±seconds for a PERFECT hit (forgiving)
+const GOOD_WIN = 0.14;     // ±seconds for GOOD
+const CATCH = 0.24;        // ±seconds outer window: still a hit (Too Fast/Slow); beyond this a note is missed
+const HOLD_MIN = 0.9;      // seconds — a note this long is a sustained hold
 
 const LIBRARY = [
   { url: '/songs/twinkle.mid', name: 'Twinkle Twinkle' },
@@ -26,6 +27,11 @@ const LIBRARY = [
 // ---------- layout ----------
 const rootEl = document.getElementById('game-root')!;
 rootEl.innerHTML = `
+<div class="rotate-hint">
+  <div class="rot-icon">🔄</div>
+  <div class="rot-title">Rotate to landscape</div>
+  <div class="rot-sub">Sheetz Shooter needs a wide screen for the 88-key piano. Turn your phone sideways to play.</div>
+</div>
 <div class="stage"><div class="cabinet">
   <div class="marquee">
     <div class="brand"><a href="/" class="back-link" title="Back to Sheetz transcription">←</a><h1>Sheetz Shooter</h1><span class="sub">Play · Shoot · Learn</span></div>
@@ -127,14 +133,16 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas);
 resize();
-const strikeY = () => H - baseH;
+const strikeY = () => H - baseH;               // top of the piano
+const lineY = () => strikeY() - 46;            // the judgment line, just above the keys
+const fallPPS = () => lineY() / LEAD;          // px/sec: a note enters at the top LEAD seconds before it lands
 const whiteW = () => W / whiteMidis.length;
 function keyX(m: number) { const w = whiteW(); return isBlack(m) ? (whiteMidis.indexOf(m - 1) + 1) * w : whiteMidis.indexOf(m) * w + w / 2; }
 
 // ---------- state ----------
 interface Alien { midi: number; x: number; y: number; time: number; dur: number; idx: number; hand: 'L' | 'R'; hold: boolean; holding: boolean; resolved: '' | 'hit' | 'miss'; flash: number; alive: boolean; }
-interface Bolt { x: number; y: number; ty: number; target: Alien | null; done: boolean; }
-interface Sustain { x: number; ty: number; endT: number; alien: Alien; }
+interface Bolt { x: number; ty: number; life: number; }   // short muzzle beam (fades), not a travelling projectile
+interface Sustain { x: number; endT: number; alien: Alien; }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; color: string; sz: number; }
 interface Popup { x: number; y: number; text: string; color: string; life: number; }
 interface Boss { hp: number; max: number; x: number; flash: number; }
@@ -142,6 +150,7 @@ interface Boss { hp: number; max: number; x: number; flash: number; }
 let song: Song | null = null;
 let synth: Synth | null = null;
 let demo = false, running = false, startAt = 0, rafId = 0, sinceStart = 0;
+let realPiano = false;  // true once a real MIDI keyboard is connected — mutes the melodic guide + blips
 let bossStartIdx = Infinity;
 
 interface State {
@@ -187,53 +196,62 @@ function updateHUD() {
 // ---------- gameplay ----------
 function spawnAlien(idx: number) {
   const nt = song!.notes[idx];
-  state.aliens.push({ midi: nt.midi, x: keyX(nt.midi), y: H * ROWS[idx % ROWS.length], time: nt.time, dur: nt.duration,
+  state.aliens.push({ midi: nt.midi, x: keyX(nt.midi), y: -40, time: nt.time, dur: nt.duration,
     idx, hand: hand(nt.midi), hold: nt.duration >= HOLD_MIN, holding: false, resolved: '', flash: 0, alive: true });
   if (idx >= bossStartIdx && !state.boss) state.boss = { hp: song!.notes.length - bossStartIdx, max: song!.notes.length - bossStartIdx, x: W / 2, flash: 0 };
 }
-function fireLaser(a: Alien) { state.ship.target = a.x; state.ship.fire = 1; state.bolts.push({ x: a.x, y: strikeY() - 12, ty: a.y, target: a, done: false }); }
-function detonate(b: Bolt) { burst(b.x, b.ty, theme.impact); if (b.target && b.target.alive && !b.target.holding) b.target.alive = false; }
+function fireLaser(x: number, ty: number) { state.ship.target = x; state.ship.fire = 1; state.bolts.push({ x, ty, life: 1 }); }
 function spawnPopup(x: number, y: number, text: string, color: string) { state.popups.push({ x, y, text, color, life: 1 }); }
 
 function resolveHit(a: Alien, st: number) {
   a.resolved = 'hit';
-  const err = Math.abs(a.time - st);
-  const q = err < 0.06 ? 2 : err < 0.13 ? 1 : 0;
-  spawnPopup(a.x, a.y - a.dur * 0 - 16, q === 2 ? 'PERFECT' : q === 1 ? 'GOOD' : 'OK', q === 2 ? '#8fffc1' : q === 1 ? '#8fd0ff' : '#ffd76a');
+  const off = st - a.time;             // + = pressed late, − = pressed early
+  const ab = Math.abs(off);
+  let grade: string, color: string, pts: number;
+  if (ab < PERFECT_WIN) { grade = 'PERFECT'; color = '#8fffc1'; pts = 18; }
+  else if (ab < GOOD_WIN) { grade = 'GOOD'; color = '#8fd0ff'; pts = 12; }
+  else { grade = off < 0 ? 'TOO FAST' : 'TOO SLOW'; color = off < 0 ? '#ffd76a' : '#ff9a6a'; pts = 6; }
+  spawnPopup(a.x, lineY() - 20, grade, color);
   const mult = Math.min(4, Math.floor(state.combo / 8) + 1);
-  state.score += (10 + q * 4) * mult;
+  state.score += pts * mult;
   state.combo++; state.hits++; state.total++;
   state.maxCombo = Math.max(state.maxCombo, state.combo);
   if (state.boss && a.idx >= bossStartIdx) { state.boss.hp--; state.boss.flash = 1; if (state.boss.hp <= 0) defeatBoss(); }
-  if (a.hold) { a.holding = true; state.ship.target = a.x; state.ship.fire = 1; state.sustains.push({ x: a.x, ty: a.y, endT: st + a.dur, alien: a }); spawnPopup(a.x, a.y - 30, 'HOLD', '#ffd76a'); }
-  else fireLaser(a);
+  fireLaser(a.x, lineY());
+  synth?.explosion();
+  if (grade === 'PERFECT') synth?.perfect();
+  if (a.hold) { a.holding = true; state.sustains.push({ x: a.x, endT: a.time + a.dur, alien: a }); spawnPopup(a.x, lineY() - 38, 'HOLD', '#ffd76a'); }
+  else { burst(a.x, lineY(), theme.impact); a.alive = false; }
   updateHUD();
 }
 function resolveMiss(a: Alien) {
   a.resolved = 'miss'; a.flash = 1;
   state.total++; state.combo = 0;
   state.shake = 1; state.redFlash = 1;
-  spawnPopup(a.x, a.y, 'MISS', '#ff6b7a');
+  synth?.ouch();
+  spawnPopup(a.x, lineY(), 'MISS', '#ff6b7a');
   state.health -= 22;
   if (state.health <= 0) { state.lives--; state.health = 100; if (state.lives <= 0) { updateHUD(); gameOver(); return; } }
   updateHUD();
 }
 function defeatBoss() {
   if (!state.boss) return;
+  synth?.explosion(0.32);
   for (let i = 0; i < 3; i++) burst(state.boss.x + (Math.random() - 0.5) * 60, H * 0.13 + (Math.random() - 0.5) * 40, theme.impact);
   spawnPopup(state.boss.x, H * 0.13, 'BOSS DOWN!', theme.laserCore);
   state.score += 250; state.boss = null; updateHUD();
 }
-function wildShot(midi: number) { state.ship.target = keyX(midi); state.ship.fire = 1; state.bolts.push({ x: keyX(midi), y: strikeY() - 12, ty: strikeY() - H * 0.5, target: null, done: false }); }
+function wildShot(midi: number) { fireLaser(keyX(midi), lineY()); }
 function burst(x: number, y: number, color: string) { for (let i = 0; i < 16; i++) { const a = Math.random() * 6.28, sp = 0.6 + Math.random() * 3; state.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, color, sz: 1.4 + Math.random() * 2.6 }); } }
 
 function playNote(midi: number) {
-  lightKey(midi); synth?.blip(midi, 0.3);
+  lightKey(midi);
+  if (!realPiano) synth?.blip(midi, 0.3);   // your real piano is the note sound when MIDI is connected
   if (!running || !song) { drawStatic(); return; }
   const st = songTime();
   let best: Alien | null = null, bestErr = 1e9;
   for (const a of state.aliens) { if (a.resolved || a.midi !== midi) continue; const e = Math.abs(a.time - st); if (e < bestErr) { bestErr = e; best = a; } }
-  if (best && bestErr <= WINDOW) resolveHit(best, st); else wildShot(midi);
+  if (best && bestErr <= CATCH) resolveHit(best, st); else wildShot(midi);
 }
 
 const songTime = () => (synth ? synth.now() - startAt : 0);
@@ -246,23 +264,23 @@ function loop() {
 
   while (state.guideCursor < song.notes.length && song.notes[state.guideCursor].time <= st + 0.12) {
     const n = song.notes[state.guideCursor];
-    synth?.play(n.midi, startAt + n.time, Math.min(0.5, n.duration), 0.11);
+    if (!realPiano) synth?.play(n.midi, startAt + n.time, Math.min(0.5, n.duration), 0.11); // muted when a real piano is connected
     state.guideCursor++;
   }
+  const line = lineY(), pps = fallPPS();
   while (state.cursor < song.notes.length && song.notes[state.cursor].time <= st + LEAD) { spawnAlien(state.cursor); state.cursor++; }
   for (const a of state.aliens) {
+    a.y = a.holding ? line : line - (a.time - st) * pps;   // falls toward the line; pinned there while held
     if (a.resolved) continue;
-    if (demo && st >= a.time) { lightKey(a.midi); synth?.blip(a.midi, 0.26); resolveHit(a, st); }
-    else if (!demo && st > a.time + WINDOW) resolveMiss(a);
+    if (demo && st >= a.time) { lightKey(a.midi); if (!realPiano) synth?.blip(a.midi, 0.26); resolveHit(a, st); }
+    else if (!demo && st > a.time + CATCH) resolveMiss(a);  // fell fully past the line, unplayed
   }
-
-  const boltSpeed = 0.6 * (H / 600);
-  for (const b of state.bolts) { b.y -= boltSpeed * 16; if (!b.done && b.y <= b.ty) { b.done = true; detonate(b); } }
-  state.bolts = state.bolts.filter((b) => !b.done && b.y > b.ty - 4);
-  for (const s of state.sustains) { if (st >= s.endT) { burst(s.x, s.ty, theme.impact); if (s.alien.alive) s.alien.alive = false; state.score += 8; } }
+  for (const b of state.bolts) b.life -= 16 / 150;
+  state.bolts = state.bolts.filter((b) => b.life > 0);
+  for (const s of state.sustains) { if (st >= s.endT) { burst(s.x, line, theme.impact); s.alien.holding = false; s.alien.alive = false; state.score += 8; } }
   state.sustains = state.sustains.filter((s) => st < s.endT);
-  for (const a of state.aliens) { a.flash = Math.max(0, a.flash - 16 / 300); if (a.resolved === 'miss' && a.flash <= 0) a.alive = false; }
-  state.aliens = state.aliens.filter((a) => a.alive);
+  for (const a of state.aliens) a.flash = Math.max(0, a.flash - 16 / 300);
+  state.aliens = state.aliens.filter((a) => a.alive && (a.holding || a.y < strikeY() + 24));
   if (state.boss) state.boss.flash = Math.max(0, state.boss.flash - 16 / 300);
 
   const next = state.aliens.filter((a) => !a.resolved).sort((x, y) => x.time - y.time)[0];
@@ -307,8 +325,9 @@ function draw() {
   if (state.shake > 0) { const s = state.shake * 5; ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s); }
   theme.bg(ctx, W, H, sinceStart, field);
   drawLanes();
+  drawJudgmentLine();
   drawSustains();
-  drawAliens();
+  drawNotes();
   drawBoss();
   drawBolts();
   theme.shooter(ctx, state.ship.x, strikeY() - 6, state.ship.fire, sinceStart);
@@ -320,25 +339,39 @@ function draw() {
 }
 function drawStatic() {
   ctx.clearRect(0, 0, W, H);
-  theme.bg(ctx, W, H, sinceStart, field); drawLanes();
-  if (song) song.notes.slice(0, 6).forEach((n, i) => theme.enemy(ctx, keyX(n.midi), H * ROWS[i % ROWS.length], { midi: n.midi, hand: hand(n.midi), flash: 0, hold: n.duration >= HOLD_MIN, boss: false, r: 14 }, sinceStart));
-  drawBolt({ x: keyX(67), y: H * 0.5, ty: H * 0.17 } as Bolt);
+  theme.bg(ctx, W, H, sinceStart, field); drawLanes(); drawJudgmentLine();
+  const line = lineY();
+  if (song) song.notes.slice(0, 6).forEach((n, i) => drawNote({ midi: n.midi, x: keyX(n.midi), y: line - (i + 0.4) * (line / 6.5), time: 0, dur: n.duration, idx: i, hand: hand(n.midi), hold: n.duration >= HOLD_MIN, holding: false, resolved: '', flash: 0, alive: true }));
   theme.shooter(ctx, W / 2, strikeY() - 6, 0, sinceStart); drawVignette();
 }
 function drawLanes() {
   const w = whiteW(), sy = strikeY();
   for (let i = 0; i <= whiteMidis.length; i++) { ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(i * w, 0); ctx.lineTo(i * w, sy); ctx.stroke(); }
-  const b = state.bolts[state.bolts.length - 1];
-  if (b) { const lg = ctx.createLinearGradient(0, 0, 0, sy); lg.addColorStop(0, 'transparent'); lg.addColorStop(1, theme.laneGlow); ctx.fillStyle = lg; ctx.fillRect(b.x - w * 0.5, 0, w, sy); }
-  const grd = ctx.createLinearGradient(0, sy - 14, 0, sy + 2); grd.addColorStop(0, 'transparent'); grd.addColorStop(1, theme.laneGlow); ctx.fillStyle = grd; ctx.fillRect(0, sy - 14, W, 16);
+  // highlight the lane of the NEXT note so the target key is obvious
+  const next = state.aliens.filter((a) => !a.resolved).sort((p, q) => p.time - q.time)[0];
+  if (next) { const lg = ctx.createLinearGradient(0, 0, 0, sy); lg.addColorStop(0, 'transparent'); lg.addColorStop(1, theme.laneGlow); ctx.fillStyle = lg; ctx.fillRect(next.x - w * 0.5, 0, w, sy); }
 }
-function drawAliens() {
-  for (const a of state.aliens) {
-    theme.enemy(ctx, a.x, a.y, { midi: a.midi, hand: a.hand, flash: a.flash, hold: a.hold, boss: false, r: 14 }, sinceStart);
-    ctx.fillStyle = '#eef1fb'; ctx.font = '700 10px ui-monospace, monospace'; ctx.textAlign = 'center';
-    ctx.fillText(noteName(a.midi), a.x, a.y - 20);
-  }
+function drawJudgmentLine() {
+  const y = lineY();
+  ctx.save();
+  const g = ctx.createLinearGradient(0, y - 16, 0, y + 16); g.addColorStop(0, 'transparent'); g.addColorStop(0.5, theme.laneGlow); g.addColorStop(1, 'transparent');
+  ctx.fillStyle = g; ctx.fillRect(0, y - 16, W, 32);
+  ctx.strokeStyle = theme.laserCore; ctx.lineWidth = 2; ctx.shadowColor = theme.laser; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  ctx.restore();
 }
+function drawNote(a: Alien) {
+  const line = lineY();
+  // hold tail rising above the head shows how long to hold
+  if (a.hold) { const tail = a.dur * fallPPS(); ctx.save(); ctx.globalAlpha = a.holding ? 0.85 : 0.5; ctx.strokeStyle = a.hand === 'L' ? '#ffcf6a' : theme.laser; ctx.lineWidth = Math.max(4, whiteW() * 0.35); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x, a.y - tail); ctx.stroke(); ctx.restore(); }
+  ctx.save();
+  if (a.resolved === 'miss') ctx.globalAlpha = 0.4;
+  theme.enemy(ctx, a.x, a.holding ? line : a.y, { midi: a.midi, hand: a.hand, flash: a.flash, hold: a.hold, boss: false, r: 13 }, sinceStart);
+  ctx.restore();
+  ctx.fillStyle = '#eef1fb'; ctx.font = '700 10px ui-monospace, monospace'; ctx.textAlign = 'center';
+  ctx.fillText(noteName(a.midi), a.x, (a.holding ? line : a.y) - 18);
+}
+function drawNotes() { [...state.aliens].sort((p, q) => p.y - q.y).forEach(drawNote); }
 function drawBoss() {
   if (!state.boss) return;
   const bx = state.boss.x, by = H * 0.12;
@@ -349,21 +382,22 @@ function drawBoss() {
   ctx.fillStyle = '#eef1fb'; ctx.font = '700 10px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.fillText('BOSS', bx, by - 50);
 }
 function drawSustains() {
+  const top = lineY(), bottom = strikeY();
   for (const s of state.sustains) {
     ctx.save(); ctx.shadowColor = theme.laser; ctx.shadowBlur = 16;
-    const g = ctx.createLinearGradient(0, strikeY(), 0, s.ty); g.addColorStop(0, theme.laser); g.addColorStop(1, theme.laserCore);
-    ctx.fillStyle = g; ctx.fillRect(s.x - 4, s.ty, 8, strikeY() - s.ty);
-    ctx.fillStyle = theme.laserCore; ctx.fillRect(s.x - 1.5, s.ty, 3, strikeY() - s.ty);
+    const g = ctx.createLinearGradient(0, bottom, 0, top); g.addColorStop(0, theme.laser); g.addColorStop(1, theme.laserCore);
+    ctx.fillStyle = g; ctx.fillRect(s.x - 4, top, 8, bottom - top);
+    ctx.fillStyle = theme.laserCore; ctx.fillRect(s.x - 1.5, top, 3, bottom - top);
     ctx.restore();
   }
 }
+// A short muzzle beam from the piano up to the judgment line that fades right after a hit.
 function drawBolt(b: Bolt) {
-  const len = 72; ctx.save(); ctx.shadowColor = theme.laser; ctx.shadowBlur = 22;
-  const grd = ctx.createLinearGradient(0, b.y + len, 0, b.y); grd.addColorStop(0, 'transparent'); grd.addColorStop(0.7, theme.laser); grd.addColorStop(1, theme.laser);
-  ctx.fillStyle = grd; ctx.fillRect(b.x - 3, b.y, 6, len);
-  ctx.shadowBlur = 12; const core = ctx.createLinearGradient(0, b.y + len, 0, b.y); core.addColorStop(0, 'transparent'); core.addColorStop(1, theme.laserCore);
-  ctx.fillStyle = core; ctx.fillRect(b.x - 1.2, b.y, 2.4, len);
-  ctx.shadowColor = theme.laser; ctx.shadowBlur = 24; ctx.fillStyle = theme.laserCore; ctx.beginPath(); ctx.arc(b.x, b.y, 4, 0, 6.2832); ctx.fill();
+  const bottom = strikeY(), top = b.ty;
+  ctx.save(); ctx.globalAlpha = Math.max(0, b.life); ctx.shadowColor = theme.laser; ctx.shadowBlur = 18;
+  const g = ctx.createLinearGradient(0, bottom, 0, top); g.addColorStop(0, theme.laser); g.addColorStop(1, theme.laserCore);
+  ctx.fillStyle = g; ctx.fillRect(b.x - 3, top, 6, bottom - top);
+  ctx.fillStyle = theme.laserCore; ctx.fillRect(b.x - 1.2, top, 2.4, bottom - top);
   ctx.restore();
 }
 function drawBolts() { for (const b of state.bolts) drawBolt(b); }
@@ -419,7 +453,8 @@ let midiConn: MidiConnection | null = null;
 $('connectBtn').addEventListener('click', async () => {
   midiConn?.disconnect();
   midiConn = await connectMidi((m) => playNote(m));
-  const map: Record<string, string> = { connected: `MIDI: ${midiConn.deviceName || 'keyboard'} ✓`, unsupported: 'MIDI: not supported here', denied: 'MIDI: access denied', 'no-devices': 'MIDI: no devices found' };
+  realPiano = midiConn.status === 'connected';   // your piano is the sound now — mute the guide
+  const map: Record<string, string> = { connected: `MIDI: ${midiConn.deviceName || 'keyboard'} ✓ · guide muted`, unsupported: 'MIDI: not supported here', denied: 'MIDI: access denied', 'no-devices': 'MIDI: no devices found' };
   midiText.textContent = map[midiConn.status];
   midiPill.classList.toggle('on', midiConn.status === 'connected');
 });

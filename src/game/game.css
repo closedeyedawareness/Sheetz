@@ -86,4 +86,40 @@ body { margin: 0; }
 .foot { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
 .foot b { color: var(--cyan); font-weight: 600; }
 :focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
-@media (max-width: 640px) { .hud { grid-template-columns: 1fr; } .spacer { margin-left: 0; } }
+/* ---------- Mobile / responsive ---------- */
+.rotate-hint { display: none; }
+@keyframes rotdev { 0%, 55%, 100% { transform: rotate(0); } 78% { transform: rotate(90deg); } }
+@media (max-width: 880px) and (orientation: portrait) {
+  .rotate-hint {
+    display: flex; position: fixed; inset: 0; z-index: 999;
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+    text-align: center; padding: 28px; background: var(--bg0); color: var(--text);
+  }
+  .rot-icon { font-size: 60px; animation: rotdev 2.6s ease-in-out infinite; }
+  .rot-title { font-size: 25px; font-weight: 800; letter-spacing: 0.02em; }
+  .rot-sub { font-size: 14px; color: var(--muted); max-width: 30ch; line-height: 1.55; }
+  .stage { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .rot-icon { animation: none; } }
+
+/* Landscape phones / narrow windows: compact everything so HUD + play field + controls all fit. */
+@media (max-width: 960px) {
+  .stage { padding: 8px 8px 14px; min-height: auto; }
+  .cabinet { gap: 8px; max-width: 100%; }
+  .brand h1 { font-size: 22px; letter-spacing: 0.05em; }
+  .brand .sub, .back-link, .foot { display: none; }
+  .midi-pill { font-size: 11px; padding: 6px 10px; }
+  .hud { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { padding: 8px 10px; }
+  .eyebrow { font-size: 9px; letter-spacing: 0.1em; }
+  .song-title { font-size: 15px; }
+  .song-sub { font-size: 11px; }
+  .stat-row { gap: 12px; }
+  .stat .num { font-size: 16px; }
+  .screen { aspect-ratio: auto; height: 60vh; min-height: 230px; }
+  .piano { height: 62px; }
+  .wkey .lbl { display: none; }
+  .console { padding: 8px; gap: 6px; }
+  .btn, .select, .file-label, .theme-pill { padding: 7px 10px; font-size: 12px; }
+}
+@media (max-width: 520px) { .hud { grid-template-columns: 1fr; } }
