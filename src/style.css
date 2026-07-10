@@ -474,3 +474,37 @@ button.secondary:hover,
     font-size: 18px;
   }
 }
+
+/* Text fallback shown when OSMD can't engrave the staff (see showScoreFallback). */
+.fallback-notes {
+  padding: 4px 2px;
+}
+.fallback-warning {
+  color: var(--accent-2, #ff9ba5);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.fb-staff {
+  margin-bottom: 18px;
+}
+.fb-staff h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.fb-measure {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.fb-measure-num {
+  flex: 0 0 2.5em;
+  opacity: 0.5;
+  text-align: right;
+}

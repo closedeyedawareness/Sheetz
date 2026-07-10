@@ -6,8 +6,9 @@ import { connectMidi, type MidiSession } from './midi/webMidi';
 import { exportScoreToPdf } from './render/exportPdf';
 import { renderScore } from './render/osmdRender';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
+import { midiToPitch } from './theory/pitchSpelling';
 import { generateChordProgression, generateStructuredProgression } from './theory/progressionGenerator';
-import type { NoteEvent, Score } from './types';
+import type { Measure, NoteEvent, Score } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -209,6 +210,47 @@ function describeScore(score: Score): string {
   `;
 }
 
+/** MIDI → display note name, e.g. 61 → "C#4", spelled to match the score's key. */
+function noteName(midi: number, key: Score['key']): string {
+  const p = midiToPitch(midi, key);
+  const accidental = p.alter > 0 ? '#'.repeat(p.alter) : p.alter < 0 ? 'b'.repeat(-p.alter) : '';
+  return `${p.step}${accidental}${p.octave}`;
+}
+
+/** One staff's measures rendered as readable text: "1: C4+E4+G4 · rest · D4". */
+function staffToText(measures: Measure[], key: Score['key']): string {
+  return measures
+    .map((measure, i) => {
+      const cells = measure.slots.map((slot) =>
+        slot.type === 'rest' || !slot.pitches?.length
+          ? 'rest'
+          : slot.pitches.map((m) => noteName(m, key)).join('+')
+      );
+      return `<div class="fb-measure"><span class="fb-measure-num">${i + 1}</span>${escapeHtml(
+        cells.join(' · ')
+      )}</div>`;
+    })
+    .join('');
+}
+
+/**
+ * Fallback when OSMD can't engrave the staff (e.g. its clefType crash): the notes
+ * were detected fine, so still show them as text per hand rather than losing the
+ * whole result to an error message.
+ */
+function showScoreFallback(score: Score): void {
+  scoreSection.hidden = false;
+  scoreMeta.innerHTML = describeScore(score);
+  timeSigSelect.value = `${score.timeSignature.numerator}/${score.timeSignature.denominator}`;
+  scoreInner.innerHTML = `
+    <div class="fallback-notes">
+      <p class="fallback-warning">⚠ Couldn't engrave the staff for this take, so here are the detected notes as text (chords joined with +).</p>
+      <div class="fb-staff"><h4>Treble (right hand)</h4>${staffToText(score.treble.measures, score.key)}</div>
+      <div class="fb-staff"><h4>Bass (left hand)</h4>${staffToText(score.bass.measures, score.key)}</div>
+    </div>
+  `;
+}
+
 function pdfFilename(score: Score): string {
   const base = [score.title, score.artist].filter((s): s is string => Boolean(s)).join(' - ') || 'sheet-music';
   return `${base.replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
@@ -317,20 +359,32 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise
   // separate failure domain — don't report an engraving error as "Pitch detection
   // failed", which sent people chasing the wrong problem (and hid that the notes
   // were actually detected fine).
+  const tempoOverride = tempoInput.value ? Number(tempoInput.value) : undefined;
+  let score: Score;
   try {
-    const tempoOverride = tempoInput.value ? Number(tempoInput.value) : undefined;
-    const score = buildScore(notes, {
+    score = buildScore(notes, {
       tempoBpm: tempoOverride,
       timeSignature: currentTimeSignature(),
       ...currentSongMeta(),
     });
+  } catch (err) {
+    console.error('building the score failed', err);
+    setStatus(`Detected ${notes.length} notes, but couldn't build the score (${describeError(err)}).`, 'error');
+    progressBar.hidden = true;
+    return;
+  }
+
+  try {
     await showScore(score);
     setStatus(`Detected ${notes.length} notes.`, 'info');
   } catch (err) {
-    console.error('building/rendering the score failed', err);
+    // The score is valid; only the engraving (OSMD) failed. Keep the result usable
+    // by showing the notes as text instead of discarding everything into an error.
+    console.error('rendering the sheet music failed; showing text fallback', err);
+    showScoreFallback(score);
     setStatus(
-      `Detected ${notes.length} notes, but couldn't render the sheet music (${describeError(err)}). ` +
-        'The full details were logged to the browser console (open DevTools → Console).',
+      `Detected ${notes.length} notes, but couldn't engrave the staff (${describeError(err)}) — ` +
+        'showing the notes as text below. Details were logged to the browser console.',
       'error'
     );
   } finally {
