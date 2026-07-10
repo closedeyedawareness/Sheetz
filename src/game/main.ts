@@ -14,6 +14,7 @@ const LEAD = 2.2;          // seconds a note is visible falling before it reache
 const PERFECT_WIN = 0.06;  // ±seconds for a PERFECT hit (forgiving)
 const GOOD_WIN = 0.14;     // ±seconds for GOOD
 const CATCH = 0.24;        // ±seconds outer window: still a hit (Too Fast/Slow); beyond this a note is missed
+const CUE_LEAD = 1.3;      // seconds before a note is due that its key starts flickering red
 const HOLD_MIN = 0.9;      // seconds — a note this long is a sustained hold
 
 const LIBRARY = [
@@ -61,7 +62,7 @@ rootEl.innerHTML = `
     <div class="scanlines"></div>
     <div class="overlay" id="overlay">
       <h2 id="ovTitle">Play the song. Blast the invasion.</h2>
-      <p id="ovText">Enemies form above the exact key the song needs next — right-hand notes and left-hand notes in their own colours, chords side-by-side, long notes as holds. Play them in time on your MIDI keyboard (or computer keys / clicking) to fire and clear the wave.</p>
+      <p id="ovText">Notes fall down each key's lane — the lowest is next to play. Can't read notes? Watch the keys: the one to play flickers red as it nears, then turns green — play on green. Use a MIDI keyboard, the computer keys, or tap.</p>
       <button class="btn" id="startBtn">▶ Start</button>
     </div>
   </div>
@@ -70,6 +71,7 @@ rootEl.innerHTML = `
     <select class="select" id="songSelect"></select>
     <label class="file-label">📂 Load .mid<input type="file" id="fileInput" accept=".mid,.midi,audio/midi"></label>
     <span class="theme-pills" id="themePills"></span>
+    <button class="btn ghost" id="guideBtn" aria-pressed="true">🟢 Key guide: on</button>
     <button class="btn ghost" id="demoBtn" aria-pressed="false">👁 Demo: off</button>
     <div class="spacer"></div>
     <button class="btn" id="playBtn">▶ Start</button>
@@ -117,6 +119,35 @@ positionBlacks();
 window.addEventListener('resize', positionBlacks);
 function lightKey(m: number) { const el = keyEls[m]; if (!el) return; el.classList.add('lit'); setTimeout(() => el.classList.remove('lit'), 190); }
 
+// Colour-cue the keys so you can play by watching them, not by reading note names:
+// the target key flickers red (faster as the note nears) then turns solid green at the moment to play.
+const cuedKeys = new Set<HTMLElement>();
+function clearCues() { for (const el of cuedKeys) { el.style.background = ''; el.style.boxShadow = ''; } cuedKeys.clear(); }
+function updateKeyCues(st: number) {
+  clearCues();
+  if (!keyGuide) return;
+  const soonest = new Map<number, number>();  // midi -> nearest timing offset
+  for (const a of state.aliens) {
+    if (a.resolved) continue;
+    const off = st - a.time;                    // <0 = still approaching
+    if (off > CATCH || off < -CUE_LEAD) continue;
+    const cur = soonest.get(a.midi);
+    if (cur === undefined || Math.abs(off) < Math.abs(cur)) soonest.set(a.midi, off);
+  }
+  for (const [midi, off] of soonest) {
+    const el = keyEls[midi]; if (!el) continue;
+    if (Math.abs(off) <= GOOD_WIN) {            // GREEN — play now
+      el.style.background = '#37ff86'; el.style.boxShadow = '0 0 22px #37ff86'; cuedKeys.add(el);
+    } else if (off < 0) {                        // RED flicker, faster as it nears
+      const prog = 1 - Math.min(1, -off / CUE_LEAD);
+      const hz = 3 + prog * 15;
+      if (Math.sin((sinceStart / 1000) * hz * 6.2832) > 0) {
+        el.style.background = '#ff3b5c'; el.style.boxShadow = `0 0 ${10 + prog * 16}px #ff3b5c`; cuedKeys.add(el);
+      }
+    }
+  }
+}
+
 // ---------- canvas ----------
 let W = 0, H = 0, DPR = 1, baseH = 0;
 let field: { x: number; y: number; z: number }[] = [];
@@ -151,6 +182,7 @@ let song: Song | null = null;
 let synth: Synth | null = null;
 let demo = false, running = false, startAt = 0, rafId = 0, sinceStart = 0;
 let realPiano = false;  // true once a real MIDI keyboard is connected — mutes the melodic guide + blips
+let keyGuide = true;    // colour cue on the keys: flicker red as a note nears, green = play now (great for non-readers)
 let bossStartIdx = Infinity;
 
 interface State {
@@ -295,8 +327,7 @@ function loop() {
   state.redFlash = Math.max(0, state.redFlash - 16 / 300);
   for (const s of field) { s.y += theme.fieldDir * s.z * 0.5; if (s.y > H) s.y = 0; else if (s.y < 0) s.y = H; }
 
-  piano.querySelectorAll('.due').forEach((e) => e.classList.remove('due'));
-  if (next && keyEls[next.midi]) keyEls[next.midi].classList.add('due');
+  updateKeyCues(st);
 
   draw();
   if (st > song.duration + 2 && !state.aliens.length && !state.sustains.length) { finishSong(); return; }
@@ -309,10 +340,10 @@ function finishSong() {
   ovTitle.textContent = `Wave cleared — ${acc}% accuracy`;
   ovText.textContent = `Score ${state.score.toLocaleString()} · best combo ×${state.maxCombo} · ${state.lives} lives left. Start again, try a harder song, switch theme, or load your own .mid.`;
   overlay.classList.remove('hidden'); playBtn.textContent = '▶ Start';
-  piano.querySelectorAll('.due').forEach((e) => e.classList.remove('due'));
+  clearCues();
 }
 function gameOver() {
-  running = false; cancelAnimationFrame(rafId);
+  running = false; cancelAnimationFrame(rafId); clearCues();
   ovTitle.textContent = 'Shields down — game over';
   ovText.textContent = `You cleared to ${state.total ? Math.round((state.hits / state.total) * 100) : 0}% accuracy for ${state.score.toLocaleString()} points. Press Start to try again — turn on Demo to see it played, or pick an easier song.`;
   overlay.classList.remove('hidden'); playBtn.textContent = '▶ Start';
@@ -417,7 +448,7 @@ async function start() {
   overlay.classList.add('hidden'); playBtn.textContent = '⏸ Stop';
   cancelAnimationFrame(rafId); rafId = requestAnimationFrame(loop);
 }
-function stop() { running = false; cancelAnimationFrame(rafId); if (synth) { synth.ctx.close(); synth = null; } playBtn.textContent = '▶ Start'; }
+function stop() { running = false; cancelAnimationFrame(rafId); if (synth) { synth.ctx.close(); synth = null; } clearCues(); playBtn.textContent = '▶ Start'; }
 playBtn.addEventListener('click', () => (running ? stop() : start()));
 $('startBtn').addEventListener('click', start);
 $('restartBtn').addEventListener('click', start);
@@ -438,6 +469,12 @@ THEMES.forEach((t) => {
 });
 
 $('demoBtn').addEventListener('click', () => { demo = !demo; const b = $('demoBtn'); b.textContent = demo ? '👁 Demo: on' : '👁 Demo: off'; b.setAttribute('aria-pressed', String(demo)); });
+
+$('guideBtn').addEventListener('click', () => {
+  keyGuide = !keyGuide;
+  const b = $('guideBtn'); b.textContent = keyGuide ? '🟢 Key guide: on' : '🟢 Key guide: off'; b.setAttribute('aria-pressed', String(keyGuide));
+  if (!keyGuide) clearCues();
+});
 
 $<HTMLInputElement>('fileInput').addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return; stop();
