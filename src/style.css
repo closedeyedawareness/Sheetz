@@ -475,6 +475,22 @@ button.secondary:hover,
   }
 }
 
+/* Link from the transcription app to the arcade game. */
+.game-link {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  text-decoration: none;
+  color: #06131a;
+  background: linear-gradient(180deg, #9ff0ff, #54e6ff);
+  box-shadow: 0 8px 24px -8px rgba(84, 230, 255, 0.7);
+  transition: transform 0.08s, filter 0.15s;
+}
+.game-link b { font-weight: 800; }
+.game-link:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
 /* Text fallback shown when OSMD can't engrave the staff (see showScoreFallback). */
 .fallback-notes {
   padding: 4px 2px;
