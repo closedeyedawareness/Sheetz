@@ -164,12 +164,19 @@ function renderMeasure(
   return parts.join('');
 }
 
-/** Serializes a Score into a MusicXML document string for a two-staff (grand staff) piano part. */
-export function scoreToMusicXml(score: Score): string {
+/**
+ * Serializes a Score into a MusicXML document string for a two-staff (grand
+ * staff) piano part. Pass `range` to serialize only measures [start, end) — used
+ * to engrave very large scores in chunks; the first measure of the range still
+ * carries the clef/key/time attributes so each chunk is a self-contained score.
+ */
+export function scoreToMusicXml(score: Score, range?: { start: number; end: number }): string {
   slurCounter = 0;
   const totalMeasures = Math.max(score.treble.measures.length, score.bass.measures.length);
+  const start = range ? Math.max(0, range.start) : 0;
+  const end = range ? Math.min(range.end, totalMeasures) : totalMeasures;
   const measures: string[] = [];
-  for (let i = 0; i < totalMeasures; i++) {
+  for (let i = start; i < end; i++) {
     measures.push(
       renderMeasure(
         i,
@@ -177,7 +184,7 @@ export function scoreToMusicXml(score: Score): string {
         score.bass.measures[i],
         score.timeSignature.ticksPerMeasure,
         score,
-        i === 0
+        i === start
       )
     );
   }
