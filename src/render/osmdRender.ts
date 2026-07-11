@@ -20,6 +20,13 @@ async function engrave(
   opts: { drawTitle: boolean; drawComposer: boolean }
 ): Promise<void> {
   const base = { backend: 'svg' as const, autoResize: false, drawPartNames: false, ...opts };
+  // Wait for the music font before laying out. On slow/mobile connections
+  // render() can otherwise run while the notation font is still loading, so
+  // VexFlow measures glyphs at the wrong (fallback) metrics and OSMD's layout
+  // can veer into a bad internal state. A no-op once fonts are ready.
+  if (typeof document !== 'undefined' && document.fonts?.ready) {
+    try { await document.fonts.ready; } catch { /* fonts API unavailable — proceed */ }
+  }
   let lastErr: unknown;
   for (const pageFormat of ['A4_P', 'Endless']) {
     container.innerHTML = '';
@@ -62,7 +69,9 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
       await engrave(container, scoreToMusicXml(score), { drawTitle: hasTitle, drawComposer: hasComposer });
     } catch (err) {
       console.error('OSMD failed to render this score. MusicXML that triggered it:\n', scoreToMusicXml(score), '\nScore:', score, '\nError:', err);
-      throw err;
+      // Augment the message so the user-facing fallback names the failure
+      // domain ("1 pass") rather than a bare "clefType".
+      throw new Error(`engraving failed (${total} measures, 1 pass): ${err instanceof Error ? err.message : String(err)}`);
     }
     renderChordOverlay(container, score);
     return;
@@ -79,7 +88,10 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
       await engrave(chunkEl, chunkXml, { drawTitle: idx === 0 && hasTitle, drawComposer: idx === 0 && hasComposer });
     } catch (err) {
       console.error(`OSMD failed to engrave measures ${start + 1}-${end} of ${total}. MusicXML that triggered it:\n`, chunkXml, '\nError:', err);
-      throw err;
+      // Name the exact failing chunk so the text-fallback message (visible even
+      // on mobile, where there's no console) confirms the chunked path ran and
+      // pinpoints where it broke.
+      throw new Error(`engraving failed at measures ${start + 1}-${end} of ${total} (chunk ${idx + 1}): ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   renderChordOverlay(container, score);
