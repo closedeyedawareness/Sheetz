@@ -240,7 +240,8 @@ function staffToText(measures: Measure[], key: Score['key']): string {
  * were detected fine, so still show them as text per hand rather than losing the
  * whole result to an error message.
  */
-function showScoreFallback(score: Score, errorMessage = ''): void {
+function showScoreFallback(score: Score, error: unknown = ''): void {
+  const errorMessage = describeError(error);
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
   timeSigSelect.value = `${score.timeSignature.numerator}/${score.timeSignature.denominator}`;
@@ -252,18 +253,30 @@ function showScoreFallback(score: Score, errorMessage = ''): void {
       <div class="fb-staff"><h4>Bass (left hand)</h4>${staffToText(score.bass.measures, score.key)}</div>
     </div>
   `;
-  // Surface the exact MusicXML OSMD rejected as a downloadable file — works on
-  // mobile where there's no console, so the failing case can actually be shared.
+  // Surface the exact MusicXML OSMD rejected AND full failure diagnostics as a
+  // downloadable file — works on mobile where there's no console, so the failing
+  // case (including OSMD's internal stack trace) can actually be shared.
   document.getElementById('dlErrorReport')?.addEventListener('click', () => {
     let xml = '';
     try { xml = scoreToMusicXml(score); }
     catch (e) { xml = '(failed to serialize MusicXML: ' + describeError(e) + ')'; }
+    const nav = navigator as Navigator & { deviceMemory?: number };
     const report = [
       'Sheetz — engraving error report',
       `when: ${new Date().toISOString()}`,
       `error: ${errorMessage || '(unknown)'}`,
       `key: ${score.key.name} ${score.key.mode} · time: ${score.timeSignature.numerator}/${score.timeSignature.denominator}` +
         ` · treble measures: ${score.treble.measures.length} · bass measures: ${score.bass.measures.length}`,
+      '',
+      '===== environment =====',
+      `userAgent: ${navigator.userAgent}`,
+      `viewport: ${window.innerWidth}x${window.innerHeight} @ dpr ${window.devicePixelRatio}` +
+        ` · screen: ${screen.width}x${screen.height}`,
+      `deviceMemory: ${nav.deviceMemory ?? '?'}GB · cores: ${navigator.hardwareConcurrency ?? '?'}` +
+        ` · fonts: ${(document as Document & { fonts?: { status?: string; size?: number } }).fonts?.status ?? '?'}`,
+      '',
+      '===== full error (with OSMD cause + stack) =====',
+      dumpError(error),
       '',
       '===== MusicXML that OSMD rejected =====',
       xml,
@@ -346,6 +359,28 @@ function describeError(err: unknown): string {
   return String(err);
 }
 
+/**
+ * Verbose dump of a thrown value for the downloadable error report: message,
+ * name, stack, any own enumerable props, and recursively its `.cause`. This is
+ * how we see OSMD's internal "clefType" crash on a device we can't attach a
+ * debugger to — the stack names the exact throwing function.
+ */
+function dumpError(err: unknown, depth = 0): string {
+  if (depth > 4) return '(cause chain too deep)';
+  if (!(err && typeof err === 'object')) return String(err);
+  const e = err as { name?: unknown; message?: unknown; stack?: unknown; cause?: unknown };
+  const lines: string[] = [];
+  if (e.name) lines.push(`name: ${String(e.name)}`);
+  if (e.message) lines.push(`message: ${String(e.message)}`);
+  const ownProps = Object.getOwnPropertyNames(err).filter((k) => !['name', 'message', 'stack', 'cause'].includes(k));
+  for (const k of ownProps) {
+    try { lines.push(`${k}: ${JSON.stringify((err as Record<string, unknown>)[k])}`); } catch { /* skip unserializable */ }
+  }
+  if (e.stack) lines.push(`stack:\n${String(e.stack)}`);
+  if (e.cause !== undefined && e.cause !== null) lines.push(`cause:\n${dumpError(e.cause, depth + 1).replace(/^/gm, '  ')}`);
+  return lines.join('\n');
+}
+
 async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise<void> {
   progressBar.hidden = false;
   progressFill.style.width = '0%';
@@ -406,7 +441,7 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise
     // The score is valid; only the engraving (OSMD) failed. Keep the result usable
     // by showing the notes as text instead of discarding everything into an error.
     console.error('rendering the sheet music failed; showing text fallback', err);
-    showScoreFallback(score, describeError(err));
+    showScoreFallback(score, err);
     setStatus(
       `Detected ${notes.length} notes, but couldn't engrave the staff (${describeError(err)}) — ` +
         'showing the notes as text below. Details were logged to the browser console.',

@@ -10,6 +10,24 @@ const CHUNK_THRESHOLD = 48;
 const CHUNK_SIZE = 16;
 
 /**
+ * Wraps an OSMD failure with context (which pass/chunk broke) while preserving
+ * the original error as `.cause`, so the downloadable error report can dump its
+ * real message and stack — the only window we have into OSMD's internal
+ * "clefType" crash on devices we can't debug directly.
+ */
+function engraveError(context: string, cause: unknown): Error {
+  const detail =
+    cause instanceof Error
+      ? cause.message || cause.name
+      : cause && typeof cause === 'object' && typeof (cause as { message?: unknown }).message === 'string'
+        ? (cause as { message: string }).message
+        : String(cause);
+  const err = new Error(`${context}: ${detail}`);
+  (err as Error & { cause?: unknown }).cause = cause;
+  return err;
+}
+
+/**
  * Engraves one MusicXML document into `container` with OpenSheetMusicDisplay.
  * Tries the A4 paged layout first; if OSMD's engraver throws, retries once in
  * Endless (single-strip) mode. Throws only if both layouts fail.
@@ -69,9 +87,7 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
       await engrave(container, scoreToMusicXml(score), { drawTitle: hasTitle, drawComposer: hasComposer });
     } catch (err) {
       console.error('OSMD failed to render this score. MusicXML that triggered it:\n', scoreToMusicXml(score), '\nScore:', score, '\nError:', err);
-      // Augment the message so the user-facing fallback names the failure
-      // domain ("1 pass") rather than a bare "clefType".
-      throw new Error(`engraving failed (${total} measures, 1 pass): ${err instanceof Error ? err.message : String(err)}`);
+      throw engraveError(`engraving failed (${total} measures, 1 pass)`, err);
     }
     renderChordOverlay(container, score);
     return;
@@ -91,7 +107,7 @@ export async function renderScore(container: HTMLDivElement, score: Score): Prom
       // Name the exact failing chunk so the text-fallback message (visible even
       // on mobile, where there's no console) confirms the chunked path ran and
       // pinpoints where it broke.
-      throw new Error(`engraving failed at measures ${start + 1}-${end} of ${total} (chunk ${idx + 1}): ${err instanceof Error ? err.message : String(err)}`);
+      throw engraveError(`engraving failed at measures ${start + 1}-${end} of ${total} (chunk ${idx + 1})`, err);
     }
   }
   renderChordOverlay(container, score);
