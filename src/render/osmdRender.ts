@@ -1,4 +1,5 @@
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
+import './osmdClefPatch'; // must load before any OSMD render — guards a mobile clefType crash
 import type { Score } from '../types';
 import { renderChordOverlay } from './chordOverlay';
 import { scoreToMusicXml } from './musicXml';

@@ -245,42 +245,66 @@ function showScoreFallback(score: Score, error: unknown = ''): void {
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
   timeSigSelect.value = `${score.timeSignature.numerator}/${score.timeSignature.denominator}`;
+  // Compact diagnostics (no MusicXML) shown on-screen and copyable, so the OSMD
+  // stack trace can be shared by paste/screenshot without wrangling a file —
+  // mobile's download-then-share flow is unreliable.
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const fontsStatus = (document as Document & { fonts?: { status?: string } }).fonts?.status ?? '?';
+  const diagnostics = [
+    'Sheetz — engraving error',
+    `error: ${errorMessage || '(unknown)'}`,
+    `key: ${score.key.name} ${score.key.mode} · time ${score.timeSignature.numerator}/${score.timeSignature.denominator}` +
+      ` · treble ${score.treble.measures.length} · bass ${score.bass.measures.length} measures`,
+    `ua: ${navigator.userAgent}`,
+    `view ${window.innerWidth}x${window.innerHeight} @dpr${window.devicePixelRatio} · screen ${screen.width}x${screen.height}` +
+      ` · mem ${nav.deviceMemory ?? '?'}GB · cores ${navigator.hardwareConcurrency ?? '?'} · fonts ${fontsStatus}`,
+    '',
+    dumpError(error),
+  ].join('\n');
+
   scoreInner.innerHTML = `
     <div class="fallback-notes">
       <p class="fallback-warning">⚠ Couldn't engrave the staff for this take, so here are the detected notes as text (chords joined with +).</p>
-      <button class="secondary" id="dlErrorReport" style="margin:2px 0 14px">⬇ Download error report (help fix this)</button>
+      <div class="fb-diag">
+        <p class="fb-diag-label">Crash details (this pinpoints the bug — please copy &amp; send):</p>
+        <div class="fb-diag-actions">
+          <button class="secondary" id="copyDiag">📋 Copy crash details</button>
+          <button class="secondary" id="dlErrorReport">⬇ Download full report</button>
+        </div>
+        <pre id="diagBlock" class="fb-diag-pre"></pre>
+      </div>
       <div class="fb-staff"><h4>Treble (right hand)</h4>${staffToText(score.treble.measures, score.key)}</div>
       <div class="fb-staff"><h4>Bass (left hand)</h4>${staffToText(score.bass.measures, score.key)}</div>
     </div>
   `;
-  // Surface the exact MusicXML OSMD rejected AND full failure diagnostics as a
-  // downloadable file — works on mobile where there's no console, so the failing
-  // case (including OSMD's internal stack trace) can actually be shared.
+  const diagBlock = document.getElementById('diagBlock');
+  if (diagBlock) diagBlock.textContent = diagnostics;
+
+  document.getElementById('copyDiag')?.addEventListener('click', async () => {
+    const btn = document.getElementById('copyDiag');
+    try {
+      await navigator.clipboard.writeText(diagnostics);
+      if (btn) btn.textContent = '✓ Copied — now paste it to me';
+    } catch {
+      // Clipboard API blocked (e.g. no https/permission): select the text so the
+      // user can copy it manually.
+      if (diagBlock) {
+        const range = document.createRange();
+        range.selectNodeContents(diagBlock);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      if (btn) btn.textContent = 'Selected — long-press to copy';
+    }
+  });
+
+  // Full downloadable report (adds the MusicXML) for cases where a file is easier.
   document.getElementById('dlErrorReport')?.addEventListener('click', () => {
     let xml = '';
     try { xml = scoreToMusicXml(score); }
     catch (e) { xml = '(failed to serialize MusicXML: ' + describeError(e) + ')'; }
-    const nav = navigator as Navigator & { deviceMemory?: number };
-    const report = [
-      'Sheetz — engraving error report',
-      `when: ${new Date().toISOString()}`,
-      `error: ${errorMessage || '(unknown)'}`,
-      `key: ${score.key.name} ${score.key.mode} · time: ${score.timeSignature.numerator}/${score.timeSignature.denominator}` +
-        ` · treble measures: ${score.treble.measures.length} · bass measures: ${score.bass.measures.length}`,
-      '',
-      '===== environment =====',
-      `userAgent: ${navigator.userAgent}`,
-      `viewport: ${window.innerWidth}x${window.innerHeight} @ dpr ${window.devicePixelRatio}` +
-        ` · screen: ${screen.width}x${screen.height}`,
-      `deviceMemory: ${nav.deviceMemory ?? '?'}GB · cores: ${navigator.hardwareConcurrency ?? '?'}` +
-        ` · fonts: ${(document as Document & { fonts?: { status?: string; size?: number } }).fonts?.status ?? '?'}`,
-      '',
-      '===== full error (with OSMD cause + stack) =====',
-      dumpError(error),
-      '',
-      '===== MusicXML that OSMD rejected =====',
-      xml,
-    ].join('\n');
+    const report = [diagnostics, '', '===== MusicXML that OSMD rejected =====', xml].join('\n');
     const url = URL.createObjectURL(new Blob([report], { type: 'text/plain' }));
     const a = document.createElement('a');
     a.href = url; a.download = 'sheetz-error-report.txt';
