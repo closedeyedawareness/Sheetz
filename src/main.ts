@@ -5,6 +5,7 @@ import { transcribeAudio } from './audio/transcribe';
 import { connectMidi, type MidiSession } from './midi/webMidi';
 import { exportScoreToPdf } from './render/exportPdf';
 import { renderScore } from './render/osmdRender';
+import { scoreToMusicXml } from './render/musicXml';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
 import { midiToPitch } from './theory/pitchSpelling';
 import { generateChordProgression, generateStructuredProgression } from './theory/progressionGenerator';
@@ -239,17 +240,40 @@ function staffToText(measures: Measure[], key: Score['key']): string {
  * were detected fine, so still show them as text per hand rather than losing the
  * whole result to an error message.
  */
-function showScoreFallback(score: Score): void {
+function showScoreFallback(score: Score, errorMessage = ''): void {
   scoreSection.hidden = false;
   scoreMeta.innerHTML = describeScore(score);
   timeSigSelect.value = `${score.timeSignature.numerator}/${score.timeSignature.denominator}`;
   scoreInner.innerHTML = `
     <div class="fallback-notes">
       <p class="fallback-warning">⚠ Couldn't engrave the staff for this take, so here are the detected notes as text (chords joined with +).</p>
+      <button class="secondary" id="dlErrorReport" style="margin:2px 0 14px">⬇ Download error report (help fix this)</button>
       <div class="fb-staff"><h4>Treble (right hand)</h4>${staffToText(score.treble.measures, score.key)}</div>
       <div class="fb-staff"><h4>Bass (left hand)</h4>${staffToText(score.bass.measures, score.key)}</div>
     </div>
   `;
+  // Surface the exact MusicXML OSMD rejected as a downloadable file — works on
+  // mobile where there's no console, so the failing case can actually be shared.
+  document.getElementById('dlErrorReport')?.addEventListener('click', () => {
+    let xml = '';
+    try { xml = scoreToMusicXml(score); }
+    catch (e) { xml = '(failed to serialize MusicXML: ' + describeError(e) + ')'; }
+    const report = [
+      'Sheetz — engraving error report',
+      `when: ${new Date().toISOString()}`,
+      `error: ${errorMessage || '(unknown)'}`,
+      `key: ${score.key.name} ${score.key.mode} · time: ${score.timeSignature.numerator}/${score.timeSignature.denominator}` +
+        ` · treble measures: ${score.treble.measures.length} · bass measures: ${score.bass.measures.length}`,
+      '',
+      '===== MusicXML that OSMD rejected =====',
+      xml,
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([report], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'sheetz-error-report.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 }
 
 function pdfFilename(score: Score): string {
@@ -382,7 +406,7 @@ async function transcribeAndShow(source: Blob, notFoundMessage: string): Promise
     // The score is valid; only the engraving (OSMD) failed. Keep the result usable
     // by showing the notes as text instead of discarding everything into an error.
     console.error('rendering the sheet music failed; showing text fallback', err);
-    showScoreFallback(score);
+    showScoreFallback(score, describeError(err));
     setStatus(
       `Detected ${notes.length} notes, but couldn't engrave the staff (${describeError(err)}) — ` +
         'showing the notes as text below. Details were logged to the browser console.',
