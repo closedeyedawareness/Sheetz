@@ -8,7 +8,7 @@ import { renderScore } from './render/osmdRender';
 import { scoreToMusicXml } from './render/musicXml';
 import { buildScore, makeTimeSignature } from './theory/buildScore';
 import { midiToPitch } from './theory/pitchSpelling';
-import { generateChordProgression, generateStructuredProgression } from './theory/progressionGenerator';
+import { generateChordProgression, generateSong } from './theory/progressionGenerator';
 import type { Measure, NoteEvent, Score } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -103,18 +103,7 @@ app.innerHTML = `
 
   <div id="generatedStructured" class="generated-structured-output" hidden>
     <div class="progression-meta" id="structuredMeta"></div>
-    <div class="song-section">
-      <div class="section-label">Intro</div>
-      <div class="progression-line" id="introLine"></div>
-    </div>
-    <div class="song-section">
-      <div class="section-label">Transition</div>
-      <div class="progression-line" id="transitionLine"></div>
-    </div>
-    <div class="song-section">
-      <div class="section-label">Ending</div>
-      <div class="progression-line" id="endingLine"></div>
-    </div>
+    <div id="songSections"></div>
   </div>
 </section>
 
@@ -163,9 +152,7 @@ const progressionLine = document.querySelector<HTMLDivElement>('#progressionLine
 const progressionMeta = document.querySelector<HTMLDivElement>('#progressionMeta')!;
 const generatedStructured = document.querySelector<HTMLDivElement>('#generatedStructured')!;
 const structuredMeta = document.querySelector<HTMLDivElement>('#structuredMeta')!;
-const introLine = document.querySelector<HTMLDivElement>('#introLine')!;
-const transitionLine = document.querySelector<HTMLDivElement>('#transitionLine')!;
-const endingLine = document.querySelector<HTMLDivElement>('#endingLine')!;
+const songSections = document.querySelector<HTMLDivElement>('#songSections')!;
 
 let selectedFile: File | undefined;
 let midiSession: MidiSession | undefined;
@@ -556,11 +543,21 @@ generateButton.addEventListener('click', () => {
 });
 
 generateStructuredButton.addEventListener('click', () => {
-  const structured = generateStructuredProgression();
-  introLine.textContent = structured.intro;
-  transitionLine.textContent = structured.transition;
-  endingLine.textContent = structured.ending;
-  structuredMeta.textContent = `Key: ${structured.key} (${structured.mode})`;
+  const song = generateSong();
+  structuredMeta.textContent = `${song.form} · Key: ${song.key} (${song.mode})`;
+  songSections.replaceChildren();
+  for (const section of song.sections) {
+    const wrap = document.createElement('div');
+    wrap.className = 'song-section';
+    const label = document.createElement('div');
+    label.className = 'section-label';
+    label.textContent = section.label;
+    const line = document.createElement('div');
+    line.className = 'progression-line';
+    line.textContent = section.line;
+    wrap.append(label, line);
+    songSections.append(wrap);
+  }
   generatedStructured.hidden = false;
   generatedProgression.hidden = true;
 });

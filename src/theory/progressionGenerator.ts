@@ -83,14 +83,6 @@ export interface GeneratedProgression {
   mode: 'major' | 'minor';
 }
 
-export interface StructuredProgression {
-  intro: string;
-  transition: string;
-  ending: string;
-  key: string;
-  mode: 'major' | 'minor';
-}
-
 /** Generates one line of diatonic, professionally-voiced chords in a randomly chosen key. */
 export function generateChordProgression(): GeneratedProgression {
   const mode: 'major' | 'minor' = Math.random() < 0.5 ? 'major' : 'minor';
@@ -105,45 +97,118 @@ export function generateChordProgression(): GeneratedProgression {
   return { line: chords.join(' – '), key: keyName, mode };
 }
 
-/** Generates a full song structure: intro (4 chords) → transition (4 chords) → ending (4 chords). */
-export function generateStructuredProgression(): StructuredProgression {
+// ── Full song structure ────────────────────────────────────────────────────
+// A real song is not three unrelated blocks: it is a handful of sections, each
+// with a harmonic job, arranged into a FORM — and the chorus (and verse) recur
+// identically every time they come round. That recurrence is what makes it a
+// song rather than a chord étude. Degree indices below are into *_DEGREES:
+// major 0=I 1=ii 2=iii 3=IV 4=V 5=vi 6=vii°; minor 0=i 1=ii° 2=III 3=iv 4=v 5=VI 6=VII.
+
+type SectionType = 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'A' | 'outro';
+
+interface SectionPools {
+  intro: number[][];
+  verse: number[][];
+  prechorus: number[][]; // build tension, land on V (or minor VII/v) to lift into the chorus
+  chorus: number[][]; // the hook — the harmonic "home" the song keeps returning to
+  bridge: number[][]; // contrast — depart, then set up the final chorus
+}
+
+const MAJOR_SECTION_POOLS: SectionPools = {
+  intro: [[0, 4], [0, 3], [0, 5]], // I–V, I–IV, I–vi vamp
+  verse: [[0, 5, 3, 4], [0, 4, 5, 3], [5, 3, 0, 4], [0, 3, 0, 4], [0, 2, 3, 4]],
+  prechorus: [[3, 4, 3, 4], [5, 3, 1, 4], [1, 1, 4, 4], [3, 4, 5, 4]],
+  chorus: [[0, 4, 5, 3], [0, 3, 4, 3], [5, 3, 0, 4], [0, 4, 3, 4], [3, 0, 4, 0]],
+  bridge: [[3, 5, 1, 4], [5, 2, 3, 4], [1, 4, 5, 4], [3, 3, 4, 4]],
+};
+
+const MINOR_SECTION_POOLS: SectionPools = {
+  intro: [[0, 6], [0, 3], [0, 5]], // i–VII, i–iv, i–VI vamp
+  verse: [[0, 6, 5, 6], [0, 5, 2, 6], [0, 3, 6, 2], [0, 6, 5, 4]],
+  prechorus: [[3, 3, 6, 6], [5, 6, 3, 4], [3, 4, 6, 6], [5, 3, 4, 6]],
+  chorus: [[0, 5, 2, 6], [0, 6, 3, 4], [5, 6, 0, 0], [3, 6, 0, 0]],
+  bridge: [[2, 5, 6, 4], [3, 6, 5, 4], [5, 2, 6, 4], [3, 4, 5, 6]],
+};
+
+interface FormStep { label: string; type: SectionType; }
+interface SongForm { name: string; steps: FormStep[]; }
+
+// Common real-world arrangements. Repeated labels of the same `type` reuse the
+// exact same chords (that is the point of a chorus).
+const SONG_FORMS: SongForm[] = [
+  { name: 'Verse–Chorus (Pop)', steps: [
+    { label: 'Intro', type: 'intro' }, { label: 'Verse 1', type: 'verse' }, { label: 'Pre-Chorus', type: 'prechorus' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Verse 2', type: 'verse' }, { label: 'Pre-Chorus', type: 'prechorus' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Bridge', type: 'bridge' }, { label: 'Chorus', type: 'chorus' }, { label: 'Outro', type: 'outro' } ] },
+  { name: 'Verse–Chorus (Rock)', steps: [
+    { label: 'Intro', type: 'intro' }, { label: 'Verse 1', type: 'verse' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Verse 2', type: 'verse' }, { label: 'Chorus', type: 'chorus' }, { label: 'Bridge', type: 'bridge' }, { label: 'Chorus', type: 'chorus' }, { label: 'Outro', type: 'outro' } ] },
+  { name: 'Verse–Chorus (Concise)', steps: [
+    { label: 'Intro', type: 'intro' }, { label: 'Verse', type: 'verse' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Verse', type: 'verse' }, { label: 'Chorus', type: 'chorus' }, { label: 'Outro', type: 'outro' } ] },
+  { name: 'AABA (Standard)', steps: [
+    { label: 'Intro', type: 'intro' }, { label: 'A', type: 'A' }, { label: 'A', type: 'A' }, { label: 'B — Bridge', type: 'bridge' }, { label: 'A', type: 'A' }, { label: 'Outro', type: 'outro' } ] },
+  { name: 'Ballad', steps: [
+    { label: 'Verse 1', type: 'verse' }, { label: 'Pre-Chorus', type: 'prechorus' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Verse 2', type: 'verse' }, { label: 'Pre-Chorus', type: 'prechorus' }, { label: 'Chorus', type: 'chorus' },
+    { label: 'Bridge', type: 'bridge' }, { label: 'Chorus', type: 'chorus' } ] },
+];
+
+export interface SongSection {
+  label: string;
+  /** e.g. "Cmaj7 – Am7 – Fmaj9 – G13" */
+  line: string;
+  chords: string[];
+}
+
+export interface SongProgression {
+  /** e.g. "Verse–Chorus (Pop)" */
+  form: string;
+  key: string;
+  mode: 'major' | 'minor';
+  /** Sections in performance order; recurring sections carry identical chords. */
+  sections: SongSection[];
+}
+
+/**
+ * Generates a full song: one progression per unique section, all in a single
+ * key, arranged into a real form. The chorus and verse recur with the exact
+ * same chords each time; the pre-chorus lands on the dominant to lift into the
+ * chorus; the outro takes the chorus and resolves it firmly to the tonic.
+ */
+export function generateSong(): SongProgression {
   const mode: 'major' | 'minor' = Math.random() < 0.5 ? 'major' : 'minor';
   const tonicIndex = Math.floor(Math.random() * 12);
   const rootNames = mode === 'major' ? MAJOR_ROOTS : MINOR_ROOTS;
   const degrees = mode === 'major' ? MAJOR_DEGREES : MINOR_DEGREES;
+  const pools = mode === 'major' ? MAJOR_SECTION_POOLS : MINOR_SECTION_POOLS;
+  const form = pick(SONG_FORMS);
 
-  // Intro: establishes the key with strong tonic, stable progression
-  const introSequences: number[][] = [
-    [0, 3, 4, 0], // I - IV - V - I (classic)
-    [0, 5, 1, 4], // I - vi - ii - V
-    [0, 2, 5, 1], // I - iii - vi - ii
-    [1, 4, 0, 5], // ii - V - I - vi
-  ];
-  const introSeq = pick(introSequences);
-  const intro = introSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+  const namesFor = (seq: number[]) => seq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx]));
 
-  // Transition: moves away from tonic, sets up tension, ends on dominant or secondary chord
-  const transitionSequences: number[][] = [
-    [2, 5, 1, 4], // iii - vi - ii - V (circle motion)
-    [5, 1, 4, 2], // vi - ii - V - iii (stepping up)
-    [3, 4, 5, 1], // IV - V - vi - ii (modulating feel)
-    [4, 2, 5, 3], // V - iii - vi - IV (jazz reharmonization)
-    [1, 5, 2, 4], // ii - vi - iii - V (chromatic bass feel)
-  ];
-  const transSeq = pick(transitionSequences);
-  const transition = transSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+  // Generate each unique section ONCE so its (randomly coloured) chords are
+  // fixed, then reuse across every recurrence.
+  const used = new Set(form.steps.map((s) => s.type));
+  const chordsByType: Partial<Record<SectionType, string[]>> = {};
+  if (used.has('verse')) chordsByType.verse = namesFor(pick(pools.verse));
+  if (used.has('A')) chordsByType.A = namesFor(pick(pools.verse)); // the A-section is a self-contained verse
+  if (used.has('prechorus')) chordsByType.prechorus = namesFor(pick(pools.prechorus));
+  if (used.has('chorus')) chordsByType.chorus = namesFor(pick(pools.chorus));
+  if (used.has('bridge')) chordsByType.bridge = namesFor(pick(pools.bridge));
+  if (used.has('intro')) chordsByType.intro = namesFor(pick(pools.intro));
+  if (used.has('outro')) {
+    // The outro is the hook, resolved home: take the chorus (or A) and land the
+    // last bar on the tonic for closure.
+    const base = (chordsByType.chorus ?? chordsByType.A ?? namesFor(pick(pools.chorus))).slice();
+    base[base.length - 1] = chordName(rootNames, tonicIndex, degrees[0]);
+    chordsByType.outro = base;
+  }
 
-  // Ending: resolves back to tonic, provides closure, strong final cadence
-  const endingSequences: number[][] = [
-    [5, 1, 4, 0], // vi - ii - V - I (authentic cadence)
-    [4, 3, 4, 0], // V - IV - V - I (plagal-authentic hybrid)
-    [2, 5, 1, 0], // iii - vi - ii - I (circle back)
-    [3, 4, 0, 0], // IV - V - I - I (IV-V-I resolution, double I)
-    [1, 4, 5, 0], // ii - V - vi - I (deceptive then resolve)
-  ];
-  const endSeq = pick(endingSequences);
-  const ending = endSeq.map((idx) => chordName(rootNames, tonicIndex, degrees[idx])).join(' – ');
+  const sections: SongSection[] = form.steps.map((step) => {
+    const chords = chordsByType[step.type]!;
+    return { label: step.label, chords, line: chords.join(' – ') };
+  });
 
   const keyName = `${rootNames[tonicIndex]}${mode === 'minor' ? 'm' : ''}`;
-  return { intro, transition, ending, key: keyName, mode };
+  return { form: form.name, key: keyName, mode, sections };
 }
